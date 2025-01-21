@@ -1,17 +1,16 @@
 package com.ifortex.internship.authservice.controller;
 
-import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authservice.dto.response.AuthResponse;
-import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
-import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.AuthServiceUserApi;
+import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,34 +20,28 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-public class UserController {
+public class UserController implements AuthServiceUserApi {
 
   private final UserService userService;
-  private final AuthService authService;
 
   @PatchMapping("/change-password")
-  public ResponseEntity<?> changePassword(
-      @RequestBody ChangePasswordRequest request,
-      @CookieValue("refreshToken") String refreshToken) {
+  public ResponseEntity<SuccessResponse> changePassword(
+      @RequestBody ChangePasswordRequest request) {
 
     String userEmail =
         ((UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal())
             .getEmail();
     log.info("Attempt to change password for user: {}", userEmail);
-    SuccessResponse response = userService.changePassword(request, userEmail);
-
-    AuthResponse authResponse = authService.logoutUser(refreshToken);
+    AuthResponse response = userService.changePassword(request, userEmail);
 
     HttpHeaders headers = new HttpHeaders();
     headers.add(
-        HttpHeaders.SET_COOKIE,
-        authResponse.getCookieTokensResponse().getAccessCookie().toString());
+        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getAccessCookie().toString());
     headers.add(
-        HttpHeaders.SET_COOKIE,
-        authResponse.getCookieTokensResponse().getRefreshCookie().toString());
+        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getRefreshCookie().toString());
 
-    log.info("Logout successful for user with email = {}", userEmail);
+    log.info("Logout successful for user: {}", userEmail);
 
-    return ResponseEntity.ok().headers(headers).body(response);
+    return ResponseEntity.ok().headers(headers).body(new SuccessResponse(response.getMessage()));
   }
 }

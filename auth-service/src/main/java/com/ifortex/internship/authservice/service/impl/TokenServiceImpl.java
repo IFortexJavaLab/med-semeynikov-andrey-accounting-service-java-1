@@ -1,6 +1,5 @@
 package com.ifortex.internship.authservice.service.impl;
 
-import com.ifortex.internship.authservice.dto.response.CookieTokensResponse;
 import com.ifortex.internship.authservice.exception.AuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.RefreshToken;
@@ -9,6 +8,7 @@ import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.service.CookieService;
 import com.ifortex.internship.authservice.service.RefreshTokenService;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;

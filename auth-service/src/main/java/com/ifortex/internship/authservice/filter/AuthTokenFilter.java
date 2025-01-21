@@ -1,10 +1,10 @@
 package com.ifortex.internship.authservice.filter;
 
-import com.ifortex.internship.authservice.dto.response.CookieTokensResponse;
 import com.ifortex.internship.authservice.exception.AuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -98,7 +98,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         UserDetailsImpl.builder().email(username).authorities(authorities).build();
 
     UsernamePasswordAuthenticationToken authentication =
-        new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+        new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);
 
     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 

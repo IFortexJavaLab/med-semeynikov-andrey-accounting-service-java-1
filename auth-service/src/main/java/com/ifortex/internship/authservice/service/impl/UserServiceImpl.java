@@ -1,18 +1,20 @@
 package com.ifortex.internship.authservice.service.impl;
 
-import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.repository.UserRepository;
+import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -21,6 +23,7 @@ public class UserServiceImpl implements UserService {
 
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
+  private final AuthService authService;
 
   public User findUserById(Long id) {
     return userRepository
@@ -44,7 +47,8 @@ public class UserServiceImpl implements UserService {
             });
   }
 
-  public SuccessResponse changePassword(ChangePasswordRequest request, String userEmail) {
+  @Transactional
+  public AuthResponse changePassword(ChangePasswordRequest request, String userEmail) {
 
     log.debug("Changing password for user with email: {}", userEmail);
 
@@ -83,11 +87,14 @@ public class UserServiceImpl implements UserService {
     // feature refactor it to generate link dynamically
     String link = "http://localhost:8081/api/v1/auth/login";
 
-    return SuccessResponse.builder()
-        .message(
-            String.format(
-                "Changed password successfully for user with email %s, please log in again using this link: %s",
-                user.getEmail(), link))
-        .build();
+    String message =
+        String.format(
+            "Changed password successfully for user with email %s, please log in again using this link: %s",
+            user.getEmail(), link);
+
+    AuthResponse authResponse = authService.logoutUser();
+    authResponse.setMessage(message);
+
+    return authResponse;
   }
 }

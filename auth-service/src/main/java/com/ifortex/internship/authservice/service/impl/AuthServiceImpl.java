@@ -1,17 +1,10 @@
 package com.ifortex.internship.authservice.service.impl;
 
-import com.ifortex.internship.authservice.dto.request.LoginRequest;
-import com.ifortex.internship.authservice.dto.request.PasswordResetRequest;
-import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
-import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authservice.dto.response.AuthResponse;
-import com.ifortex.internship.authservice.dto.response.CookieTokensResponse;
-import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
+import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.Role;
@@ -26,7 +19,14 @@ import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.CookieService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
+import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import jakarta.mail.MessagingException;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -61,7 +61,6 @@ public class AuthServiceImpl implements AuthService {
   private final RoleRepository roleRepository;
   private final EmailService emailService;
   private final RedisService redisService;
-  private final UserService userService;
 
   @Getter
   @Value("${app.otp.expirationMinutes}")
@@ -106,7 +105,7 @@ public class AuthServiceImpl implements AuthService {
     String message =
         String.format("User with email: %s has been successfully registered", user.getEmail());
 
-    return SuccessResponse.builder().message(message).build();
+    return new SuccessResponse(message);
   }
 
   public AuthResponse authenticateUser(LoginRequest loginRequest) {
@@ -175,7 +174,14 @@ public class AuthServiceImpl implements AuthService {
       throw new AuthorizationException("OTP has expired or is invalid. Please try again.");
     }
 
-    var user = userService.findUserByEmail(userEmail);
+    var user =
+        userRepository
+            .findByEmail(userEmail)
+            .orElseThrow(
+                () -> {
+                  log.debug("User with email: {} not found", userEmail);
+                  return new AuthorizationException("Failed to verify otp. Please try again.");
+                });
 
     List<String> roles =
         user.getRoles().isEmpty()
@@ -185,7 +191,8 @@ public class AuthServiceImpl implements AuthService {
     return buildAuthResponse(userEmail, roles, user.getId());
   }
 
-  public AuthResponse logoutUser(String refreshToken) {
+  @Transactional
+  public AuthResponse logoutUser() {
 
     Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
@@ -193,7 +200,7 @@ public class AuthServiceImpl implements AuthService {
     if (!"anonymousUser".equals(principle.toString())) {
       userDetails = (UserDetailsImpl) principle;
       log.debug("Deleting refresh token for user: {}", userDetails.getUsername());
-      refreshTokenRepository.deleteRefreshTokenByToken(refreshToken);
+      refreshTokenRepository.deleteRefreshTokenByUserEmail(userDetails.getEmail());
       log.debug("Refresh token deleted successfully for user: {}", userDetails.getUsername());
     } else {
       log.warn("Logout attempt by anonymous or unauthenticated user.");
@@ -215,7 +222,10 @@ public class AuthServiceImpl implements AuthService {
     String userEmail = passwordResetRequest.getEmail();
     log.debug("Initiating password reset for email: {}", userEmail);
 
-    userService.findUserByEmail(userEmail);
+    if (userRepository.findByEmail(userEmail).isEmpty()) {
+      log.debug("User with email: {} not found", userEmail);
+      throw new EntityNotFoundException(String.format("User with email: %s not found", userEmail));
+    }
 
     String otp = generateOtp();
     log.debug("Otp for user: {} generated successfully", userEmail);
@@ -241,7 +251,7 @@ public class AuthServiceImpl implements AuthService {
             "An email with a password reset code has been sent to your email: %s, please follow this link: %s",
             userEmail, resetPasswordLink);
 
-    return SuccessResponse.builder().message(message).build();
+    return new SuccessResponse(message);
   }
 
   public SuccessResponse resetPasswordWithOtp(PasswordResetWithOtpDto request) {
@@ -266,7 +276,14 @@ public class AuthServiceImpl implements AuthService {
       throw new InvalidRequestException("Password and confirmation password do not match.");
     }
 
-    var user = userService.findUserByEmail(userEmail);
+    var user =
+        userRepository
+            .findByEmail(userEmail)
+            .orElseThrow(
+                () -> {
+                  log.debug("User with email: {} not found", userEmail);
+                  return new AuthorizationException("Failed to reset password. Please try again.");
+                });
 
     String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
     user.setPassword(newEncodedPassword);
@@ -280,12 +297,10 @@ public class AuthServiceImpl implements AuthService {
     // feature refactor it to generate link dynamically
     String link = "http://localhost:8081/api/v1/auth/login";
 
-    return SuccessResponse.builder()
-        .message(
-            String.format(
-                "Changed password successfully for user with email %s, please log in again using this link: %s",
-                user.getEmail(), link))
-        .build();
+    return new SuccessResponse(
+        String.format(
+            "Changed password successfully for user with email %s, please log in again using this link: %s",
+            user.getEmail(), link));
   }
 
   /**
@@ -302,7 +317,7 @@ public class AuthServiceImpl implements AuthService {
    *     message
    */
   private AuthResponse buildAuthResponse(String userEmail, List<String> roles, Long id) {
-
+    
     String newAccessToken = tokenService.generateAccessToken(userEmail, roles);
     log.debug("Access token generated successfully for user: {}", userEmail);
 

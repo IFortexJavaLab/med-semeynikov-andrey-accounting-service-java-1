@@ -1,9 +1,9 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.response.CookieTokensResponse;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
+import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collection;
 import java.util.List;
@@ -83,7 +83,8 @@ public interface TokenService {
    * Extracts the refresh token from the cookies in the given HTTP request.
    *
    * @param request the {@link HttpServletRequest} containing the cookies
-   * @return the value of the "refreshToken" cookie if present, or {@code null} if the cookie is not found
+   * @return the value of the "refreshToken" cookie if present, or {@code null} if the cookie is not
+   *     found
    */
   String getRefreshTokenFromRequest(HttpServletRequest request);
 }

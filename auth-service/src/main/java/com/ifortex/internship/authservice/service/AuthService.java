@@ -1,17 +1,17 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.request.LoginRequest;
-import com.ifortex.internship.authservice.dto.request.PasswordResetRequest;
-import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
-import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authservice.dto.response.AuthResponse;
-import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
+import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
+import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 
 /**
  * Service interface for handling user login and authentication.
@@ -72,15 +72,13 @@ public interface AuthService {
   AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest verifyLoginOtpRequest);
 
   /**
-   * Logs out the currently authenticated user by invalidating the provided refresh token and
-   * clearing authentication cookies.
+   * Logs out the currently authenticated user.
    *
-   * @param refreshToken the refresh token to be invalidated
    * @return an {@link AuthResponse} containing a success message, cleared authentication cookies,
    *     and the user's email
    * @throws AuthorizationException if the user is not authenticated
    */
-  AuthResponse logoutUser(String refreshToken);
+  AuthResponse logoutUser();
 
   /**
    * Initiates the password reset process for a user.

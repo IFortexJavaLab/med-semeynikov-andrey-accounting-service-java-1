@@ -2,7 +2,6 @@ package com.ifortex.internship.authservice.controller;
 
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.UserService;
-import com.ifortex.internship.authserviceapi.AuthServiceUserApi;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
@@ -20,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-public class UserController implements AuthServiceUserApi {
+public class UserController {
 
   private final UserService userService;
 

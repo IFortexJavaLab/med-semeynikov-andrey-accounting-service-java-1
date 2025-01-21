@@ -34,7 +34,6 @@ public class EmailService {
     MimeMessage message = emailSender.createMimeMessage();
     MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
-    // feature I am not sure about first line
     helper.setFrom(emailUsername);
     helper.setTo(to);
     helper.setSubject(subject);

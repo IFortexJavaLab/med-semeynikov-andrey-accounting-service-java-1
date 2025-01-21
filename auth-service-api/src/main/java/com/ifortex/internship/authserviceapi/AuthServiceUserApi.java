@@ -9,9 +9,8 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @FeignClient(
-    name = "AUTH-SERVICE",
+    name = "auth-service",
     path = "/api/v1/users",
-    url = "localhost:8081",
     configuration = FeignClientConfiguration.class)
 public interface AuthServiceUserApi {
 

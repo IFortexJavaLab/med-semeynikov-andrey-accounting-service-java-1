@@ -1,4 +1,4 @@
-package com.ifortex.internship.authservice.dto.response;
+package com.ifortex.internship.authserviceapi.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

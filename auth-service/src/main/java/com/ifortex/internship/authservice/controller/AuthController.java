@@ -1,15 +1,15 @@
 package com.ifortex.internship.authservice.controller;
 
-import com.ifortex.internship.authservice.dto.request.LoginRequest;
-import com.ifortex.internship.authservice.dto.request.PasswordResetRequest;
-import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
-import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authservice.dto.response.AuthResponse;
-import com.ifortex.internship.authservice.dto.response.CookieTokensResponse;
-import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
+import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -82,11 +82,11 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<?> logout(@CookieValue("refreshToken") String refreshToken) {
+  public ResponseEntity<?> logout() {
 
     log.info("Logout attempt");
 
-    AuthResponse authResponse = authService.logoutUser(refreshToken);
+    AuthResponse authResponse = authService.logoutUser();
 
     HttpHeaders headers = new HttpHeaders();
     headers.add(
@@ -123,7 +123,7 @@ public class AuthController {
   }
 
   @PostMapping("/refresh")
-  public ResponseEntity<?> refreshToken(@CookieValue("refreshToken") String refreshToken) {
+  public ResponseEntity<?> refreshTokens(@CookieValue("refreshToken") String refreshToken) {
 
     log.info("Tokens refresh attempt.");
     CookieTokensResponse cookie = tokenService.refreshTokens(refreshToken);

@@ -4,7 +4,6 @@ import com.ifortex.internship.authservice.exception.AuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,7 +13,6 @@ import java.util.Collection;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -50,11 +48,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         return;
       }
 
-      if (tokenService.isExpired(jwt)) {
-        handleExpiredToken(request, response, filterChain);
-        return;
-      }
-
       throw new AuthorizationException("Invalid JWT token");
 
     } catch (AuthServiceException e) {
@@ -64,26 +57,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     } catch (Exception e) {
       log.debug("Cannot set user authentication: {}", e.getMessage());
     }
-    filterChain.doFilter(request, response);
-  }
-
-  private void handleExpiredToken(
-      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-      throws IOException, ServletException {
-    log.debug("Access token is expired, attempting to refresh tokens");
-
-    String refreshToken = tokenService.getRefreshTokenFromRequest(request);
-    if (refreshToken == null) {
-      throw new AuthorizationException("Refresh token is missing, cannot refresh tokens");
-    }
-
-    CookieTokensResponse tokensResponse = tokenService.refreshTokens(refreshToken);
-    response.addHeader(HttpHeaders.SET_COOKIE, tokensResponse.getAccessCookie().toString());
-    response.addHeader(HttpHeaders.SET_COOKIE, tokensResponse.getRefreshCookie().toString());
-
-    log.debug("Access and refresh tokens set in cookie successfully");
-
-    authenticateUser(tokensResponse.getAccessCookie().getValue(), request);
     filterChain.doFilter(request, response);
   }
 

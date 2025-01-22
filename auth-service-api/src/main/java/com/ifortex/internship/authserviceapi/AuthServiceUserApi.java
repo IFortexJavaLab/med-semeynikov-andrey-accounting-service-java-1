@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface AuthServiceUserApi {
 
   /**
-   * Changes the password for a user. Requires a valid refresh token.
+   * Changes the password for a user.
    *
    * @param request the change password request containing current and new passwords
    * @return SuccessResponse indicating the password change result

@@ -42,7 +42,9 @@ public class AuthSecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/api/v1/auth/**", "/api/v1/users/**")
+                auth.requestMatchers("/api/v1/auth/logout", "/api/v1/users/**")
+                    .authenticated()
+                    .requestMatchers("/api/v1/auth/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())

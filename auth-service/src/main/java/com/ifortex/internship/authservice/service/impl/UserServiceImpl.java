@@ -84,8 +84,7 @@ public class UserServiceImpl implements UserService {
 
     log.info("User with email: {} successfully changed password", userEmail);
 
-    // feature refactor it to generate link dynamically
-    String link = "http://localhost:8081/api/v1/auth/login";
+    String link = "http://localhost:8085/api/v1/auth/login";
 
     String message =
         String.format(

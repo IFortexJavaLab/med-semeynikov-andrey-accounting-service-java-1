@@ -141,8 +141,7 @@ public class AuthServiceImpl implements AuthService {
         throw new EmailSendException("Failed to send 2FA verification email");
       }
 
-      // feature refactor it to generate link dynamically
-      String verifyOtpLink = "http://localhost:8081/api/v1/auth/verify-otp.";
+      String verifyOtpLink = "http://localhost:8085/api/v1/auth/verify-otp.";
       String message =
           String.format(
               "Two-factor authentication is required to complete your login. A verification code has been sent "
@@ -244,8 +243,7 @@ public class AuthServiceImpl implements AuthService {
       throw new EmailSendException("Failed to send verification email");
     }
 
-    // feature generate link dynamically
-    String resetPasswordLink = "http://localhost:8081/api/v1/auth/reset-password/confirm";
+    String resetPasswordLink = "http://localhost:8085/api/v1/auth/reset-password/confirm";
     String message =
         String.format(
             "An email with a password reset code has been sent to your email: %s, please follow this link: %s",
@@ -294,8 +292,7 @@ public class AuthServiceImpl implements AuthService {
 
     log.info("User with email: {} successfully changed password", userEmail);
 
-    // feature refactor it to generate link dynamically
-    String link = "http://localhost:8081/api/v1/auth/login";
+    String link = "http://localhost:8085/api/v1/auth/login";
 
     return new SuccessResponse(
         String.format(

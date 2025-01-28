@@ -122,6 +122,11 @@
             <artifactId>auth-service-api</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>com.ifortex.internship</groupId>
+            <artifactId>user-management-api</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
 
     </dependencies>
     <dependencyManagement>

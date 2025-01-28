@@ -4,12 +4,15 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
+import com.ifortex.internship.authservice.model.mapper.UserMapper;
 import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +27,7 @@ public class UserServiceImpl implements UserService {
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final AuthService authService;
+  private final UserMapper userMapper;
 
   public User findUserById(Long id) {
     return userRepository
@@ -95,5 +99,22 @@ public class UserServiceImpl implements UserService {
     authResponse.setMessage(message);
 
     return authResponse;
+  }
+
+  public AuthUserDto getUser(String email) {
+    log.debug("Getting user by email: {}", email);
+
+    var user = findUserByEmail(email);
+    return userMapper.toDto(user);
+  }
+
+  public List<AuthUserDto> getAllUsers() {
+
+    log.debug("Getting all users");
+
+    List<User> users = userRepository.findAll();
+    List<AuthUserDto> authUserDtoList = users.stream().map(userMapper::toDto).toList();
+
+    return authUserDtoList;
   }
 }

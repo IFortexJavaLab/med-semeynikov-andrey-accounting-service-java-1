@@ -2,7 +2,7 @@ package com.ifortex.internship.authservice.controller;
 
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.UserService;
-import com.ifortex.internship.authserviceapi.dto.UserDto;
+import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -47,11 +49,18 @@ public class UserController {
     return ResponseEntity.ok().headers(headers).body(new SuccessResponse(response.getMessage()));
   }
 
-  // todo secure
   @GetMapping("/{email}")
-  public ResponseEntity<UserDto> getUserByEmail(@PathVariable String email) {
+  public ResponseEntity<AuthUserDto> getUserByEmail(@PathVariable String email) {
     log.debug("Attempt to get user by email: {}", email);
-    UserDto user = userService.getUser(email);
+    AuthUserDto user = userService.getUser(email);
     return ResponseEntity.ok(user);
+  }
+
+  @GetMapping()
+  public ResponseEntity<List<AuthUserDto>> getAllUsers() {
+    log.debug("Attempt to get all users");
+    List<AuthUserDto> users = userService.getAllUsers();
+
+    return ResponseEntity.ok(users);
   }
 }

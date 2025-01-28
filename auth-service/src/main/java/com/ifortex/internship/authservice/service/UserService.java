@@ -4,8 +4,10 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
+import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import java.util.List;
 
 /**
  * Service interface for managing user-related operations.
@@ -53,4 +55,26 @@ public interface UserService {
    *     </ul>
    */
   AuthResponse changePassword(ChangePasswordRequest request, String userEmail);
+
+  /**
+   * Retrieves a user by their email address and maps the entity to a {@link AuthUserDto}.
+   *
+   * <p>This method fetches the user from the database using their email address and converts the
+   * {@link User} entity to a {@code AuthUserDto}.
+   *
+   * @param email the email address of the user to retrieve.
+   * @return an {@code AuthUserDto} containing the user's data.
+   * @throws EntityNotFoundException if no user is found with the specified email.
+   */
+  AuthUserDto getUser(String email);
+
+  /**
+   * Retrieves all users from the database and maps them to a list of {@link AuthUserDto}.
+   *
+   * <p>This method fetches all user entities from the database and converts each {@link User}
+   * entity to a {@code AuthUserDto} using the {@code userMapper}.
+   *
+   * @return a list of {@code AuthUserDto} objects, each representing a user.
+   */
+  List<AuthUserDto> getAllUsers();
 }

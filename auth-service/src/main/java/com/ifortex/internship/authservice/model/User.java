@@ -18,17 +18,17 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.Accessors;
 
 @Entity
 @Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
+@Accessors(chain = true)
 public class User {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

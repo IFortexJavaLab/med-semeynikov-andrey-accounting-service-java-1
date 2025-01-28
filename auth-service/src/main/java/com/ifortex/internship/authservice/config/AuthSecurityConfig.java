@@ -7,6 +7,7 @@ import com.ifortex.internship.authservice.service.impl.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -42,7 +43,10 @@ public class AuthSecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/api/v1/auth/logout", "/api/v1/users/**")
+                // feature add check user email and provide access to the user page
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/users", "/api/v1/users/{email}")
+                    .hasAnyRole("ADMIN", "SUPERADMIN")
+                    .requestMatchers("/api/v1/auth/logout", "/api/v1/users/**")
                     .authenticated()
                     .requestMatchers("/api/v1/auth/**")
                     .permitAll()

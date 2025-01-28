@@ -100,12 +100,13 @@ public class AuthServiceImpl implements AuthService {
             .map(List::of)
             .orElseGet(Collections::emptyList);
 
-    User user = new User();
-    user.setEmail(request.getEmail());
-    user.setPassword(hashedPassword);
-    user.setRoles(roles);
-    user.setCreatedAt(LocalDateTime.now());
-    user.setUpdatedAt(LocalDateTime.now());
+    User user =
+        new User()
+            .setEmail(request.getEmail())
+            .setPassword(hashedPassword)
+            .setRoles(roles)
+            .setCreatedAt(LocalDateTime.now())
+            .setUpdatedAt(LocalDateTime.now());
     userRepository.save(user);
     log.debug("User: {} saved to db successfully", request.getEmail());
 

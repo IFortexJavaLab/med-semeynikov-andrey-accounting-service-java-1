@@ -1,11 +1,14 @@
 package com.ifortex.internship.authserviceapi;
 
 import com.ifortex.internship.authserviceapi.config.FeignClientConfiguration;
+import com.ifortex.internship.authserviceapi.dto.UserDto;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @FeignClient(
@@ -22,4 +25,7 @@ public interface AuthServiceUserApi {
    */
   @PatchMapping("/change-password")
   ResponseEntity<SuccessResponse> changePassword(@RequestBody ChangePasswordRequest request);
+
+  @GetMapping("/{email}")
+  ResponseEntity<UserDto> getUserByEmail(@PathVariable("email") String email);
 }

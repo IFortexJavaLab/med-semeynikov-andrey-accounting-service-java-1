@@ -6,6 +6,7 @@ import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistere
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
+import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.User;
@@ -27,6 +28,9 @@ import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
+import com.ifortex.internship.usermanagementapi.UserManagementApi;
+import com.ifortex.internship.usermanagementapi.dto.request.AuthUserDto;
+import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
 import jakarta.mail.MessagingException;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -37,6 +41,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -61,6 +66,8 @@ public class AuthServiceImpl implements AuthService {
   private final RoleRepository roleRepository;
   private final EmailService emailService;
   private final RedisService redisService;
+  private final UserManagementApi userManagementApi;
+  private final Environment environment;
 
   @Getter
   @Value("${app.otp.expirationMinutes}")
@@ -70,6 +77,8 @@ public class AuthServiceImpl implements AuthService {
   public SuccessResponse registerUser(RegistrationRequest request) {
 
     log.debug("Register user: {}", request.getEmail());
+
+    // feature change logic according to soft delete
     if (userRepository.findByEmail(request.getEmail()).isPresent()) {
       log.debug("Email: {} is already registered.", request.getEmail());
       log.info("Failed to register user");
@@ -99,6 +108,15 @@ public class AuthServiceImpl implements AuthService {
     user.setUpdatedAt(LocalDateTime.now());
     userRepository.save(user);
     log.debug("User: {} saved to db successfully", request.getEmail());
+
+    try {
+      userManagementApi.saveUser(new AuthUserDto(user.getEmail()));
+    } catch (CustomFeignException e) {
+      log.debug(
+          "Error occurred during call to the user management service. Details: {}", e.getMessage());
+      throw new RegistrationFailedException(
+          String.format("Failed to register with email: %s. Try again later", user.getEmail()));
+    }
 
     log.info("User: {} register successfully", request.getEmail());
 
@@ -141,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
         throw new EmailSendException("Failed to send 2FA verification email");
       }
 
-      String verifyOtpLink = "http://localhost:8085/api/v1/auth/verify-otp.";
+      String verifyOtpLink = environment.getProperty("app.link.verifyOtp");
       String message =
           String.format(
               "Two-factor authentication is required to complete your login. A verification code has been sent "
@@ -243,7 +261,7 @@ public class AuthServiceImpl implements AuthService {
       throw new EmailSendException("Failed to send verification email");
     }
 
-    String resetPasswordLink = "http://localhost:8085/api/v1/auth/reset-password/confirm";
+    String resetPasswordLink = environment.getProperty("app.link.resetPassword");
     String message =
         String.format(
             "An email with a password reset code has been sent to your email: %s, please follow this link: %s",
@@ -292,12 +310,12 @@ public class AuthServiceImpl implements AuthService {
 
     log.info("User with email: {} successfully changed password", userEmail);
 
-    String link = "http://localhost:8085/api/v1/auth/login";
+    String loginLink = environment.getProperty("app.link.login");
 
     return new SuccessResponse(
         String.format(
             "Changed password successfully for user with email %s, please log in again using this link: %s",
-            user.getEmail(), link));
+            user.getEmail(), loginLink));
   }
 
   /**
@@ -314,7 +332,7 @@ public class AuthServiceImpl implements AuthService {
    *     message
    */
   private AuthResponse buildAuthResponse(String userEmail, List<String> roles, Long id) {
-    
+
     String newAccessToken = tokenService.generateAccessToken(userEmail, roles);
     log.debug("Access token generated successfully for user: {}", userEmail);
 

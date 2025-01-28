@@ -42,5 +42,9 @@ app:
   jwtExpirationMs: 900000
   otp:
     expirationMinutes: 5
+  link:
+    verifyOtp: http://localhost:8085/api/v1/auth/verify-otp.
+    resetPassword: http://localhost:8085/api/v1/auth/reset-password/confirm
+    login: http://localhost:8085/api/v1/auth/login
 
 

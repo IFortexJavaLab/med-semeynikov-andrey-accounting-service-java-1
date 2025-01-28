@@ -2,6 +2,7 @@ package com.ifortex.internship.authservice.controller;
 
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.dto.UserDto;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
@@ -10,7 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,5 +45,13 @@ public class UserController {
     log.info("Logout successful for user: {}", userEmail);
 
     return ResponseEntity.ok().headers(headers).body(new SuccessResponse(response.getMessage()));
+  }
+
+  // todo secure
+  @GetMapping("/{email}")
+  public ResponseEntity<UserDto> getUserByEmail(@PathVariable String email) {
+    log.debug("Attempt to get user by email: {}", email);
+    UserDto user = userService.getUser(email);
+    return ResponseEntity.ok(user);
   }
 }

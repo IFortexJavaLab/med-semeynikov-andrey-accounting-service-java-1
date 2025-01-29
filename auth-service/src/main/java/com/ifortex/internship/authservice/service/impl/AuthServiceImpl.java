@@ -160,7 +160,7 @@ public class AuthServiceImpl implements AuthService {
         throw new EmailSendException("Failed to send 2FA verification email");
       }
 
-      String verifyOtpLink = environment.getProperty("app.link.verifyOtp");
+      String verifyOtpLink = environment.getProperty("app.link.verifyOtpLogin");
       String message =
           String.format(
               "Two-factor authentication is required to complete your login. A verification code has been sent "
@@ -221,7 +221,7 @@ public class AuthServiceImpl implements AuthService {
       refreshTokenRepository.deleteRefreshTokenByUserEmail(userDetails.getEmail());
       log.debug("Refresh token deleted successfully for user: {}", userDetails.getUsername());
     } else {
-      log.warn("Logout attempt by anonymous or unauthenticated user.");
+      log.debug("Logout attempt by anonymous or unauthenticated user.");
       throw new AuthorizationException("User is not authenticated. Please log in.");
     }
 

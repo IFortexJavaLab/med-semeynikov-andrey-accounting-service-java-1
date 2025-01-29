@@ -3,8 +3,6 @@ package com.ifortex.internship.authservice.controller;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.TokenService;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
@@ -61,7 +59,7 @@ public class AuthController {
     return ResponseEntity.ok().headers(headers).body(authResponse.getMessage());
   }
 
-  @PostMapping("/verify-otp")
+  @PostMapping("login/verify-otp")
   public ResponseEntity<?> completeLoginWithOtp(@RequestBody @Valid VerifyLoginOtpRequest request) {
 
     log.info("Verify otp attempt to log in for email: {}", request.getEmail());
@@ -102,27 +100,7 @@ public class AuthController {
     return ResponseEntity.ok().headers(headers).body(authResponse.getMessage());
   }
 
-  @PostMapping("/reset-password/request")
-  public ResponseEntity<?> initiatePasswordReset(@RequestBody @Valid PasswordResetRequest request) {
-
-    log.info("Reset password attempt for user: {}", request.getEmail());
-    SuccessResponse response = authService.initiatePasswordReset(request);
-    log.info("Email with otp to reset password was sent to the email: {}", request.getEmail());
-
-    return ResponseEntity.ok().body(response);
-  }
-
-  @PostMapping("/reset-password/confirm")
-  public ResponseEntity<?> resetPasswordWithOtp(
-      @RequestBody @Valid PasswordResetWithOtpDto request) {
-
-    log.info("Reset password with otp attempt for email: {}", request.getEmail());
-    SuccessResponse response = authService.resetPasswordWithOtp(request);
-
-    return ResponseEntity.ok().body(response.getMessage());
-  }
-
-  @PostMapping("/refresh")
+  @PostMapping("/refresh-token")
   public ResponseEntity<?> refreshTokens(@CookieValue("refreshToken") String refreshToken) {
 
     log.info("Tokens refresh attempt.");

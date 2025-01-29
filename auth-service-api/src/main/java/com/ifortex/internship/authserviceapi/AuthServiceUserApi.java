@@ -2,32 +2,18 @@ package com.ifortex.internship.authserviceapi;
 
 import com.ifortex.internship.authserviceapi.config.FeignClientConfiguration;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
-import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import feign.FeignException;
+import java.util.List;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-
-import java.util.List;
 
 @FeignClient(
     name = "auth-service",
-    path = "/api/v1/users",
+    path = "/api/v1/account",
     configuration = FeignClientConfiguration.class)
 public interface AuthServiceUserApi {
-
-  /**
-   * Changes the password for a user.
-   *
-   * @param request the change password request containing current and new passwords
-   * @return SuccessResponse indicating the password change result
-   */
-  @PatchMapping("/change-password")
-  ResponseEntity<SuccessResponse> changePassword(@RequestBody ChangePasswordRequest request);
 
   /**
    * Retrieves a user by their email address from the auth-service.
@@ -44,6 +30,19 @@ public interface AuthServiceUserApi {
   ResponseEntity<AuthUserDto> getUserByEmail(@PathVariable("email") String email);
 
   /**
+   * Retrieves a user based on the current authentication from the auth-service.
+   *
+   * <p>This method calls the auth-service endpoint to fetch a user's data based on the current
+   * authentication and returns it as a {@link AuthUserDto}.
+   *
+   * @return a {@code ResponseEntity} containing the {@code AuthUserDto} with user details, or a
+   *     {@code ResponseEntity} with an appropriate HTTP status if the user is not found.
+   * @throws FeignException if there is an issue with the communication with the auth-service.
+   */
+  @GetMapping()
+  ResponseEntity<AuthUserDto> getUserByAuthentication(@PathVariable("email") String email);
+
+  /**
    * Retrieves a list of all users from the auth-service.
    *
    * <p>This method calls the auth-service endpoint to fetch all user data and maps it to a list of
@@ -53,6 +52,6 @@ public interface AuthServiceUserApi {
    *     all users, or an empty list if no users exist.
    * @throws FeignException if there is an issue with the communication with the auth-service.
    */
-  @GetMapping()
+  @GetMapping("/users")
   ResponseEntity<List<AuthUserDto>> getAllUsers();
 }

@@ -77,4 +77,16 @@ public interface UserService {
    * @return a list of {@code AuthUserDto} objects, each representing a user.
    */
   List<AuthUserDto> getAllUsers();
+
+  /**
+   * Retrieves the authenticated user's details.
+   *
+   * <p>This method obtains the currently authenticated user's principal from the security context
+   * and retrieves the corresponding {@link AuthUserDto}. If the user is not authenticated, an
+   * {@link AuthorizationException} is thrown.
+   *
+   * @return the authenticated user's details as an AuthUserDto
+   * @throws AuthorizationException if the user is not authenticated
+   */
+  AuthUserDto getUserByAuthentication();
 }

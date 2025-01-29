@@ -44,11 +44,13 @@ public class AuthSecurityConfig {
         .authorizeHttpRequests(
             auth ->
                 // feature add check user email and provide access to the user page
-                auth.requestMatchers(HttpMethod.GET, "/api/v1/users", "/api/v1/users/{email}")
-                    .hasAnyRole("ADMIN", "SUPERADMIN")
-                    .requestMatchers("/api/v1/auth/logout", "/api/v1/users/**")
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/account/*")
+                    .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                    .requestMatchers(HttpMethod.PATCH, "/api/v1/account/password")
                     .authenticated()
-                    .requestMatchers("/api/v1/auth/**")
+                    .requestMatchers("/api/v1/auth/logout", "/api/v1/account/")
+                    .authenticated()
+                    .requestMatchers("/api/v1/auth/**", "/api/v1/account/password/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())

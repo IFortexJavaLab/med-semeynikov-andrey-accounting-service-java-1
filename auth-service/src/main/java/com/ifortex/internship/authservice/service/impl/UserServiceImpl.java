@@ -4,6 +4,7 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
+import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.mapper.UserMapper;
 import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.service.AuthService;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -116,5 +118,20 @@ public class UserServiceImpl implements UserService {
     List<AuthUserDto> authUserDtoList = users.stream().map(userMapper::toDto).toList();
 
     return authUserDtoList;
+  }
+
+  public AuthUserDto getUserByAuthentication() {
+
+    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    UserDetailsImpl userDetails;
+    AuthUserDto authUserDto;
+
+    if ("anonymousUser".equals(principle.toString())) {
+      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+      throw new AuthorizationException("User is not authenticated. Please log in.");
+    }
+    userDetails = (UserDetailsImpl) principle;
+    authUserDto = getUser(userDetails.getEmail());
+    return authUserDto;
   }
 }

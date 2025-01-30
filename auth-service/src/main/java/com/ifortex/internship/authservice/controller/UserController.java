@@ -9,6 +9,11 @@ import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +33,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/account")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "BearerAuth")
+@Tag(name = "User Account", description = "User account management")
 public class UserController {
 
   private final UserService userService;
   private final AuthService authService;
 
+  @Operation(summary = "Change password")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "Password updated successfully"),
+          @ApiResponse(responseCode = "400", description = "Invalid request"),
+          @ApiResponse(responseCode = "401", description = "Unauthorized")
+  })
   @PatchMapping("/password")
   public ResponseEntity<SuccessResponse> changePassword(
       @RequestBody ChangePasswordRequest request) {
@@ -54,8 +67,13 @@ public class UserController {
     return ResponseEntity.ok().headers(headers).body(new SuccessResponse(response.getMessage()));
   }
 
+  @Operation(summary = "Request password reset")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "OTP email sent"),
+          @ApiResponse(responseCode = "400", description = "Invalid request")
+  })
   @PostMapping("/password/reset")
-  public ResponseEntity<?> initiatePasswordReset(@RequestBody @Valid PasswordResetRequest request) {
+    public ResponseEntity<?> initiatePasswordReset(@RequestBody @Valid PasswordResetRequest request) {
 
     log.info("Reset password attempt for user: {}", request.getEmail());
     SuccessResponse response = authService.initiatePasswordReset(request);
@@ -64,6 +82,11 @@ public class UserController {
     return ResponseEntity.ok().body(response);
   }
 
+  @Operation(summary = "Reset password with OTP")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "Password reset successful"),
+          @ApiResponse(responseCode = "400", description = "Invalid OTP or email")
+  })
   @PostMapping("/password/reset-confirm")
   public ResponseEntity<?> resetPasswordWithOtp(
       @RequestBody @Valid PasswordResetWithOtpDto request) {
@@ -74,6 +97,11 @@ public class UserController {
     return ResponseEntity.ok().body(response.getMessage());
   }
 
+  @Operation(summary = "Get authenticated user")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "User data retrieved"),
+          @ApiResponse(responseCode = "401", description = "Unauthorized")
+  })
   @GetMapping()
   public ResponseEntity<AuthUserDto> getUserByAuthentication() {
     log.debug("Attempt to get user using jwt");
@@ -81,6 +109,11 @@ public class UserController {
     return ResponseEntity.ok(user);
   }
 
+  @Operation(summary = "Get user by email")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "User found"),
+          @ApiResponse(responseCode = "404", description = "User not found")
+  })
   @GetMapping("/{email}")
   public ResponseEntity<AuthUserDto> getUserByEmail(@PathVariable String email) {
     log.debug("Attempt to get user by email: {}", email);
@@ -88,6 +121,11 @@ public class UserController {
     return ResponseEntity.ok(user);
   }
 
+  @Operation(summary = "Get all users")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "Users retrieved"),
+          @ApiResponse(responseCode = "403", description = "Forbidden")
+  })
   @GetMapping("/users")
   public ResponseEntity<List<AuthUserDto>> getAllUsers() {
     log.debug("Attempt to get all users");

@@ -40,7 +40,7 @@ public interface AuthServiceUserApi {
    * @throws FeignException if there is an issue with the communication with the auth-service.
    */
   @GetMapping()
-  ResponseEntity<AuthUserDto> getUserByAuthentication(@PathVariable("email") String email);
+  ResponseEntity<AuthUserDto> getUserByAuthentication();
 
   /**
    * Retrieves a list of all users from the auth-service.

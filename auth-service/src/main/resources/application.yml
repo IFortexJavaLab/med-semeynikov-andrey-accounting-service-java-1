@@ -44,7 +44,7 @@ app:
     expirationMinutes: 5
   link:
     verifyOtpLogin: http://localhost:8085/api/v1/auth/login/verify-otp.
-    resetPassword: http://localhost:8085/api/v1/auth/reset-password/confirm
+    resetPassword: http://localhost:8085/api/v1/account/password/reset-confirm
     login: http://localhost:8085/api/v1/auth/login
 
 

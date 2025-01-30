@@ -12,7 +12,7 @@ public class UserMapper {
   public AuthUserDto toDto(User user) {
     AuthUserDto dto =
         new AuthUserDto()
-            .setId(user.getId())
+            .setUserId(user.getUserId())
             .setEmail(user.getEmail())
             .setTwoFactorEnabled(user.isTwoFactorEnabled())
             .setSoftDeleted(user.isSoftDeleted())

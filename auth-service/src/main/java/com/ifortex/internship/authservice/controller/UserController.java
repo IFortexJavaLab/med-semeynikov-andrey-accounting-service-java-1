@@ -109,15 +109,15 @@ public class UserController {
     return ResponseEntity.ok(user);
   }
 
-  @Operation(summary = "Get user by email")
+  @Operation(summary = "Get user by userId")
   @ApiResponses({
           @ApiResponse(responseCode = "200", description = "User found"),
           @ApiResponse(responseCode = "404", description = "User not found")
   })
-  @GetMapping("/{email}")
-  public ResponseEntity<AuthUserDto> getUserByEmail(@PathVariable String email) {
-    log.debug("Attempt to get user by email: {}", email);
-    AuthUserDto user = userService.getUser(email);
+  @GetMapping("/{userId}")
+  public ResponseEntity<AuthUserDto> getUserByUserId(@PathVariable String userId) {
+    log.debug("Attempt to get user by userId: {}", userId);
+    AuthUserDto user = userService.getUserDtoByUserId(userId);
     return ResponseEntity.ok(user);
   }
 

@@ -39,7 +39,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .collect(Collectors.toList());
 
     return UserDetailsImpl.builder()
-        .id(user.getId())
+        .userId(user.getUserId())
         .email(user.getEmail())
         .password(user.getPassword())
         .isTwoFactorEnabled(user.isTwoFactorEnabled())

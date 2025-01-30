@@ -22,9 +22,10 @@ public interface TokenService {
    *
    * @param email the email of the User
    * @param roles the list of roles assigned to the User
+   * @param userId the uuid of the User
    * @return the generated JWT access token as a String
    */
-  String generateAccessToken(String email, List<String> roles);
+  String generateAccessToken(String email, List<String> roles, String userId);
 
   /**
    * Refreshes the access and refresh tokens for a User.
@@ -58,10 +59,10 @@ public interface TokenService {
   /**
    * Creates a new refresh token for the specified user ID.
    *
-   * @param userId the ID of the user for whom the refresh token is created
+   * @param email the email of the user for whom the refresh token is created
    * @return the created {@link RefreshToken}
    */
-  RefreshToken createRefreshToken(Long userId);
+  RefreshToken createRefreshToken(String email);
 
   /**
    * Extracts the username from the provided JWT access token.
@@ -70,6 +71,14 @@ public interface TokenService {
    * @return the username (email) extracted from the token
    */
   String getUsernameFromToken(String token);
+
+  /**
+   * Extracts the userId from the provided JWT access token.
+   *
+   * @param token the JWT token
+   * @return the userId (uuid) extracted from the token
+   */
+  String getUserIdFromToken(String token);
 
   /**
    * Extracts user roles from a JWT token and converts them to granted authorities.

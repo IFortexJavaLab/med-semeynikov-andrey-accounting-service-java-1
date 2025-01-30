@@ -29,13 +29,14 @@ import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.usermanagementapi.UserManagementApi;
-import com.ifortex.internship.usermanagementapi.dto.request.AuthUserDto;
+import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
 import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
 import jakarta.mail.MessagingException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -102,6 +103,7 @@ public class AuthServiceImpl implements AuthService {
 
     User user =
         new User()
+            .setUserId(UUID.randomUUID().toString())
             .setEmail(request.getEmail())
             .setPassword(hashedPassword)
             .setRoles(roles)
@@ -111,7 +113,7 @@ public class AuthServiceImpl implements AuthService {
     log.debug("User: {} saved to db successfully", request.getEmail());
 
     try {
-      userManagementApi.saveUser(new AuthUserDto(user.getEmail()));
+      userManagementApi.saveUser(new AuthUserForUserManagementDto(user.getUserId()));
     } catch (CustomFeignException e) {
       log.debug(
           "Error occurred during call to the user management service. Details: {}", e.getMessage());
@@ -174,7 +176,7 @@ public class AuthServiceImpl implements AuthService {
             .map(GrantedAuthority::getAuthority)
             .collect(Collectors.toList());
 
-    return buildAuthResponse(userEmail, roles, user.getId());
+    return buildAuthResponse(userEmail, roles, user.getUserId());
   }
 
   public AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest request) {
@@ -206,7 +208,7 @@ public class AuthServiceImpl implements AuthService {
             ? List.of(UserRole.ROLE_NON_SUBSCRIBED_USER.name())
             : user.getRoles().stream().map(role -> role.getName().name()).toList();
 
-    return buildAuthResponse(userEmail, roles, user.getId());
+    return buildAuthResponse(userEmail, roles, user.getUserId());
   }
 
   @Transactional
@@ -328,16 +330,15 @@ public class AuthServiceImpl implements AuthService {
    *
    * @param userEmail the email of the authenticated user
    * @param roles the roles assigned to the user
-   * @param id the unique identifier of the user
    * @return an AuthResponse containing access and refresh token cookies, as well as a success
    *     message
    */
-  private AuthResponse buildAuthResponse(String userEmail, List<String> roles, Long id) {
+  private AuthResponse buildAuthResponse(String userEmail, List<String> roles, String userId) {
 
-    String newAccessToken = tokenService.generateAccessToken(userEmail, roles);
+    String newAccessToken = tokenService.generateAccessToken(userEmail, roles, userId);
     log.debug("Access token generated successfully for user: {}", userEmail);
 
-    RefreshToken newRefreshToken = tokenService.createRefreshToken(id);
+    RefreshToken newRefreshToken = tokenService.createRefreshToken(userEmail);
 
     ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
     ResponseCookie refreshTokenCookie =

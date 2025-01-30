@@ -50,11 +50,12 @@ public class TokenServiceImpl implements TokenService {
     this.cookieService = cookieService;
   }
 
-  public String generateAccessToken(String email, List<String> roles) {
+  public String generateAccessToken(String email, List<String> roles, String userId) {
 
     return Jwts.builder()
         .subject(email)
         .claim("roles", roles)
+        .claim("userId", userId)
         .issuedAt(new Date(System.currentTimeMillis()))
         .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
         .signWith(getSigningKey())
@@ -75,10 +76,10 @@ public class TokenServiceImpl implements TokenService {
               ? List.of(UserRole.ROLE_NON_SUBSCRIBED_USER.name())
               : user.getRoles().stream().map(role -> role.getName().name()).toList();
 
-      String newAccessToken = generateAccessToken(user.getEmail(), roles);
+      String newAccessToken = generateAccessToken(user.getEmail(), roles, user.getUserId());
       log.debug("Access token refreshed successfully for user: {}", user.getEmail());
 
-      RefreshToken newRefreshToken = createRefreshToken(user.getId());
+      RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
 
       ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
       ResponseCookie refreshTokenCookie =
@@ -134,8 +135,8 @@ public class TokenServiceImpl implements TokenService {
     return Keys.hmacShaKeyFor(keyBytes);
   }
 
-  public RefreshToken createRefreshToken(Long userId) {
-    return refreshTokenService.createRefreshToken(userId);
+  public RefreshToken createRefreshToken(String email) {
+    return refreshTokenService.createRefreshToken(email);
   }
 
   public String getUsernameFromToken(String token) {
@@ -145,6 +146,15 @@ public class TokenServiceImpl implements TokenService {
         .parseSignedClaims(token)
         .getPayload()
         .getSubject();
+  }
+
+  public String getUserIdFromToken(String token) {
+    return Jwts.parser()
+        .verifyWith(getSigningKey())
+        .build()
+        .parseSignedClaims(token)
+        .getPayload()
+        .get("userId", String.class);
   }
 
   public Collection<? extends GrantedAuthority> getAuthorityFromToken(String token) {

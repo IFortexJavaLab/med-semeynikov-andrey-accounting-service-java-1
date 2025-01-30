@@ -17,15 +17,14 @@ public interface RefreshTokenService {
    *
    * <p>Deletes any existing tokens for the user before creating a new one.
    *
-   * @param userId the ID of the user for whom the refresh token is created
+   * @param email the email of the user for whom the refresh token is created
    * @return the created {@link RefreshToken}
    * @throws EntityNotFoundException if no user is found with the given ID
    */
-  RefreshToken createRefreshToken(Long userId);
+  RefreshToken createRefreshToken(String email);
 
   /**
    * Verifies the expiration date of the given refresh token.
-   *
    *
    * @param refreshToken the RefreshToken to verify
    * @return the verified RefreshToken if it is still valid
@@ -36,9 +35,9 @@ public interface RefreshTokenService {
   /**
    * Deletes all refresh tokens associated with the specified user.
    *
-   * @param userId the ID of the user whose tokens should be deleted
+   * @param email the ID of the user whose tokens should be deleted
    */
-  void deleteTokensByUserId(Long userId);
+  void deleteTokensByUserEmail(String email);
 
   /**
    * Retrieves a refresh token by its value.

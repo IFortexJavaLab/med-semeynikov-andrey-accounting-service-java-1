@@ -18,13 +18,13 @@ import java.util.List;
 public interface UserService {
 
   /**
-   * Finds a user by their unique identifier (ID).
+   * Finds a user by their unique identifier (userId).
    *
-   * @param id the unique identifier of the user
+   * @param userId the unique identifier of the user
    * @return the {@link User} corresponding to the provided ID
    * @throws EntityNotFoundException if a user with the specified ID is not found
    */
-  User findUserById(Long id);
+  User findUserByUserId(String userId);
 
   /**
    * Finds a user by their email address.
@@ -57,16 +57,16 @@ public interface UserService {
   AuthResponse changePassword(ChangePasswordRequest request, String userEmail);
 
   /**
-   * Retrieves a user by their email address and maps the entity to a {@link AuthUserDto}.
+   * Retrieves a user by their userId address and maps the entity to a {@link AuthUserDto}.
    *
-   * <p>This method fetches the user from the database using their email address and converts the
+   * <p>This method fetches the user from the database using their userId address and converts the
    * {@link User} entity to a {@code AuthUserDto}.
    *
-   * @param email the email address of the user to retrieve.
+   * @param userId the userId address of the user to retrieve.
    * @return an {@code AuthUserDto} containing the user's data.
-   * @throws EntityNotFoundException if no user is found with the specified email.
+   * @throws EntityNotFoundException if no user is found with the specified userId.
    */
-  AuthUserDto getUser(String email);
+  AuthUserDto getUserDtoByUserId(String userId);
 
   /**
    * Retrieves all users from the database and maps them to a list of {@link AuthUserDto}.

@@ -13,7 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 @Builder
 public class UserDetailsImpl implements UserDetails {
 
-  private Long id;
+  private String userId;
   private String email;
   @JsonIgnore private String password;
   private boolean isTwoFactorEnabled;

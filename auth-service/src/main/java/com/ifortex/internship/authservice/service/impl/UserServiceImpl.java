@@ -31,14 +31,14 @@ public class UserServiceImpl implements UserService {
   private final AuthService authService;
   private final UserMapper userMapper;
 
-  public User findUserById(Long id) {
+  public User findUserByUserId(String userId) {
     return userRepository
-        .findById(id)
+        .findByUserId(userId)
         .orElseThrow(
             () -> {
-              log.debug("User with ID: {} not found", id);
+              log.debug("User with ID: {} not found", userId);
               return new EntityNotFoundException(
-                  String.format("User with email: %d not found", id));
+                  String.format("User with email: %s not found", userId));
             });
   }
 
@@ -103,10 +103,10 @@ public class UserServiceImpl implements UserService {
     return authResponse;
   }
 
-  public AuthUserDto getUser(String email) {
-    log.debug("Getting user by email: {}", email);
+  public AuthUserDto getUserDtoByUserId(String userId) {
+    log.debug("Getting user by userId: {}", userId);
 
-    var user = findUserByEmail(email);
+    var user = findUserByUserId(userId);
     return userMapper.toDto(user);
   }
 
@@ -131,7 +131,7 @@ public class UserServiceImpl implements UserService {
       throw new AuthorizationException("User is not authenticated. Please log in.");
     }
     userDetails = (UserDetailsImpl) principle;
-    authUserDto = getUser(userDetails.getEmail());
+    authUserDto = getUserDtoByUserId(userDetails.getUserId());
     return authUserDto;
   }
 }

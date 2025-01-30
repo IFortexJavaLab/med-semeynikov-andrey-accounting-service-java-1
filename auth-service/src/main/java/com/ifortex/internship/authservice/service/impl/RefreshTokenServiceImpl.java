@@ -26,19 +26,18 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   private int refreshTokenDurationS;
 
   @Transactional
-  public RefreshToken createRefreshToken(Long userId) {
-    log.debug("Creating refresh token for user with ID: {}", userId);
+  public RefreshToken createRefreshToken(String email) {
+    log.debug("Creating refresh token for user: {}", email);
     User user =
         userRepository
-            .findById(userId)
+            .findByEmail(email)
             .orElseThrow(
                 () -> {
-                  log.debug("User with ID: {} not found", userId);
-                  return new EntityNotFoundException(
-                      String.format("User with ID: %d not found", userId));
+                  log.debug("User: {} not found", email);
+                  return new EntityNotFoundException(String.format("User %s not found", email));
                 });
 
-    deleteTokensByUserId(userId);
+    deleteTokensByUserEmail(email);
 
     RefreshToken refreshToken = new RefreshToken();
     refreshToken.setUser(user);
@@ -76,10 +75,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   }
 
   @Transactional
-  public void deleteTokensByUserId(Long userId) {
-    log.debug("Deleting refresh tokens for user with ID: {}", userId);
-    refreshTokenRepository.deleteByUserId(userId);
-    log.debug("Deleted all refresh tokens for user with ID: {}", userId);
+  public void deleteTokensByUserEmail(String email) {
+    log.debug("Deleting refresh tokens for user: {}", email);
+    refreshTokenRepository.deleteRefreshTokenByUserEmail(email);
+    log.debug("Deleted all refresh tokens for user: {}", email);
   }
 
   public RefreshToken findByToken(String token) {

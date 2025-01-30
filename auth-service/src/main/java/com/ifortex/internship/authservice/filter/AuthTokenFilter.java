@@ -65,10 +65,11 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     log.debug("Authentication user started");
 
     String username = tokenService.getUsernameFromToken(jwt);
+    String userId = tokenService.getUserIdFromToken(jwt);
     Collection<? extends GrantedAuthority> authorities = tokenService.getAuthorityFromToken(jwt);
 
     UserDetailsImpl userDetails =
-        UserDetailsImpl.builder().email(username).authorities(authorities).build();
+        UserDetailsImpl.builder().email(username).userId(userId).authorities(authorities).build();
 
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);
@@ -77,7 +78,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     SecurityContextHolder.getContext().setAuthentication(authentication);
 
-    log.debug("Set authentication for user with email: {}", userDetails.getEmail());
+    log.debug("Set authentication for user: {}", userDetails.getEmail());
   }
 
   private String parseJwt(HttpServletRequest request) {

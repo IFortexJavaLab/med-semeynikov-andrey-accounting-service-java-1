@@ -12,7 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class AuthUserDto {
-  private Long id;
+  private String userId;
   private String email;
   private boolean isTwoFactorEnabled;
   private List<String> roles;

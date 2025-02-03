@@ -1,11 +1,14 @@
 package com.ifortex.internship.authservice.exception;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -58,6 +61,24 @@ public class GlobalExceptionHandler {
         .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
 
     return ResponseEntity.badRequest().body(errors);
+  }
+
+  @ExceptionHandler(ConstraintViolationException.class)
+  public ResponseEntity<Map<String, String>> handleConstraintViolationException(
+      ConstraintViolationException ex) {
+
+    log.debug(ex.getMessage());
+
+    Map<String, String> errors = new HashMap<>();
+    for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+      errors.put(violation.getPropertyPath().toString(), violation.getMessage());
+    }
+    return ResponseEntity.badRequest().body(errors);
+  }
+
+  @ExceptionHandler(AuthorizationDeniedException.class)
+  public ResponseEntity<String> handleBadCredentialsException(AuthorizationDeniedException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied");
   }
 
   @ExceptionHandler(MissingRequestCookieException.class)

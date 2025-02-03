@@ -106,4 +106,27 @@ public interface AuthService {
    * @throws InvalidRequestException if the new password and its confirmation do not match.
    */
   SuccessResponse resetPasswordWithOtp(PasswordResetWithOtpDto passwordResetWithOtpDto);
+
+  /**
+   * Generates a random 6-digit one-time password (OTP) for authentication purposes.
+   *
+   * @return a 6-digit OTP as a String
+   */
+  String generateOtp();
+
+  /**
+   * Retrieves the email of the currently authenticated user from the security context.
+   *
+   * @return the email of the authenticated user
+   * @throws AuthorizationException if the user is not authenticated or is anonymous
+   */
+  String getUserEmailFromAuthentication();
+
+  /**
+   * Retrieves the unique user ID of the currently authenticated user from the security context.
+   *
+   * @return the user ID of the authenticated user
+   * @throws AuthorizationException if the user is not authenticated or is anonymous
+   */
+  String getUserIdFromAuthentication();
 }

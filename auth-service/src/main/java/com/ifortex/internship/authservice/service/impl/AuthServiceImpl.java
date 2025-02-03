@@ -71,7 +71,7 @@ public class AuthServiceImpl implements AuthService {
   private final Environment environment;
 
   @Getter
-  @Value("${app.otp.expirationMinutes}")
+  @Value("${app.otp.loginExpirationMinutes}")
   private int expirationMinutes;
 
   @Transactional
@@ -214,26 +214,19 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public AuthResponse logoutUser() {
 
-    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    String userEmail = getUserEmailFromAuthentication();
+    log.debug("Deleting refresh token for user: {}", userEmail);
+    refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
+    log.debug("Refresh token deleted successfully for user: {}", userEmail);
 
-    UserDetailsImpl userDetails;
-    if (!"anonymousUser".equals(principle.toString())) {
-      userDetails = (UserDetailsImpl) principle;
-      log.debug("Deleting refresh token for user: {}", userDetails.getUsername());
-      refreshTokenRepository.deleteRefreshTokenByUserEmail(userDetails.getEmail());
-      log.debug("Refresh token deleted successfully for user: {}", userDetails.getUsername());
-    } else {
-      log.debug("Logout attempt by anonymous or unauthenticated user.");
-      throw new AuthorizationException("User is not authenticated. Please log in.");
-    }
-
+    // todo refactor cookie
     ResponseCookie accessTokenCookie = cookieService.deleteAccessTokenCookie();
     ResponseCookie refreshTokenCookie = cookieService.deleteRefreshTokenCookie();
 
     return AuthResponse.builder()
         .cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))
-        .email(userDetails.getUsername())
-        .message(String.format("Logout successful for user %s", userDetails.getUsername()))
+        .email(userEmail)
+        .message(String.format("Logout successful for user %s", userEmail))
         .build();
   }
 
@@ -353,14 +346,29 @@ public class AuthServiceImpl implements AuthService {
         .build();
   }
 
-  /**
-   * Generates a random 6-digit one-time password (OTP) for authentication purposes.
-   *
-   * @return a 6-digit OTP as a String
-   */
-  private String generateOtp() {
+  public String generateOtp() {
     Random random = new Random();
     int code = random.nextInt(900000) + 100000;
     return String.valueOf(code);
+  }
+
+  public String getUserEmailFromAuthentication() {
+    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    if ("anonymousUser".equals(principle.toString())) {
+      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+      throw new AuthorizationException("User is not authenticated. Please log in.");
+    }
+    String userEmail = ((UserDetailsImpl) principle).getEmail();
+    return userEmail;
+  }
+
+  public String getUserIdFromAuthentication() {
+    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    if ("anonymousUser".equals(principle.toString())) {
+      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+      throw new AuthorizationException("User is not authenticated. Please log in.");
+    }
+    String userId = ((UserDetailsImpl) principle).getUserId();
+    return userId;
   }
 }

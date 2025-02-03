@@ -7,7 +7,6 @@ import com.ifortex.internship.authservice.service.impl.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -43,15 +42,17 @@ public class AuthSecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                // feature add check user email and provide access to the user page
-                auth.requestMatchers(HttpMethod.GET, "/api/v1/account/*")
-                    .hasAnyRole("ADMIN", "SUPER_ADMIN")
-                    .requestMatchers(HttpMethod.PATCH, "/api/v1/account/password")
-                    .authenticated()
-                    .requestMatchers("/api/v1/auth/logout", "/api/v1/account/")
-                    .authenticated()
-                    .requestMatchers("/api/v1/auth/**", "/api/v1/account/password/**")
+                auth.requestMatchers(
+                        "/api/v1/account/password/reset", "/api/v1/account/password/reset-confirm")
                     .permitAll()
+                    .requestMatchers("/api/v1/account/**")
+                    .authenticated()
+                    .requestMatchers("/api/v1/auth/logout")
+                    .authenticated()
+                    .requestMatchers("/api/v1/auth/**")
+                    .permitAll()
+                    .requestMatchers("/api/v1/auth-service/users/**")
+                    .authenticated()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs*/**")
                     .permitAll()
                     .anyRequest()

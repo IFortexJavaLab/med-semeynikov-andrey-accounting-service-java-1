@@ -5,6 +5,7 @@ import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistere
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
+import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
@@ -12,6 +13,8 @@ import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
+
+import java.util.List;
 
 /**
  * Service interface for handling user login and authentication.
@@ -129,4 +132,20 @@ public interface AuthService {
    * @throws AuthorizationException if the user is not authenticated or is anonymous
    */
   String getUserIdFromAuthentication();
+
+  /**
+   * Retrieves a list of {@link AuthUserDto} based on provided filters.
+   *
+   * <p>This method fetches users by their IDs and applies optional filters for roles, status, and
+   * email. It then maps the filtered users to their corresponding {@link AuthUserDto}
+   * representation.
+   *
+   * @param userIds List of user IDs to search for. Cannot be null.
+   * @param roles Optional list of roles to filter users by (e.g., "ADMIN", "USER").
+   * @param status Optional user status to filter by (e.g., "ACTIVE", "BLOCKED").
+   * @param email Optional email to filter users (supports partial matching, case-insensitive).
+   * @return List of {@link AuthUserDto} representing the filtered users.
+   */
+  List<AuthUserDto> searchUsers(
+      List<String> userIds, List<String> roles, String status, String email);
 }

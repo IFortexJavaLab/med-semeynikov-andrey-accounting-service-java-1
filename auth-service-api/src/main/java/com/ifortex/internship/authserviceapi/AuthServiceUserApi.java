@@ -9,7 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -18,19 +20,6 @@ import java.util.List;
     path = "/api/v1/auth-service/users",
     configuration = FeignClientConfiguration.class)
 public interface AuthServiceUserApi {
-
-  /**
-   * Retrieves a list of all users from the auth-service.
-   *
-   * <p>This method calls the auth-service endpoint to fetch all user data and maps it to a list of
-   * {@code AuthUserDto}.
-   *
-   * @return a {@code ResponseEntity} containing a list of {@code AuthUserDto} objects representing
-   *     all users, or an empty list if no users exist.
-   * @throws FeignException if there is an issue with the communication with the auth-service.
-   */
-  @GetMapping()
-  ResponseEntity<List<AuthUserDto>> getAllUsers();
 
   /**
    * Retrieves a user by their userId from the auth-service.
@@ -63,8 +52,8 @@ public interface AuthServiceUserApi {
    * Updates the two-factor authentication (2FA) setting for a specific user as an administrator.
    *
    * <p>This method allows an administrator to enable or disable 2FA for a user by calling the
-   * auth-service endpoint. The update is performed based on the provided {@code userId} and
-   * {@link TwoFactorAuthRequest}.
+   * auth-service endpoint. The update is performed based on the provided {@code userId} and {@link
+   * TwoFactorAuthRequest}.
    *
    * @param userId the unique identifier of the user whose 2FA setting needs to be changed.
    * @param request a {@code TwoFactorAuthRequest} object containing the new 2FA setting.
@@ -73,19 +62,40 @@ public interface AuthServiceUserApi {
    */
   @PatchMapping("/{userId}/2fa")
   ResponseEntity<AuthUserDto> changeTwoFactorAuthByAdmin(
-          @PathVariable("userId") String userId, @RequestBody TwoFactorAuthRequest request);
+      @PathVariable("userId") String userId, @RequestBody TwoFactorAuthRequest request);
 
   /**
    * Updates the two-factor authentication (2FA) setting for the currently authenticated user.
    *
    * <p>This method allows an authenticated user to enable or disable their own 2FA setting by
-   * calling the auth-service endpoint. The update is performed based on the provided
-   * {@link TwoFactorAuthRequest}.
+   * calling the auth-service endpoint. The update is performed based on the provided {@link
+   * TwoFactorAuthRequest}.
    *
    * @param request a {@code TwoFactorAuthRequest} object containing the new 2FA setting.
    * @return a ResponseEntity containing the updated {@link AuthUserDto} with the new 2FA status.
    * @throws FeignException if there is an issue with the communication with the auth-service.
    */
   @PatchMapping("user/2fa")
-  ResponseEntity<?> changeTwoFactorAuth(@RequestBody TwoFactorAuthRequest request);
+  ResponseEntity<AuthUserDto> changeTwoFactorAuth(@RequestBody TwoFactorAuthRequest request);
+
+  /**
+   * Method for searching user details in the authentication service.
+   *
+   * <p>This method retrieves user information based on provided filters such as user IDs, roles,
+   * status, and email. It supports optional filters for roles, status, and email, while the list of
+   * user IDs is mandatory.
+   *
+   * @param userIds List of user IDs to retrieve details for. Cannot be {@code null}.
+   * @param roles (Optional) List of roles to filter users by (e.g., "ADMIN", "USER").
+   * @param status (Optional) User status to filter by (e.g., "ACTIVE", "BLOCKED").
+   * @param email (Optional) Email address to filter users by. Supports partial, case-insensitive
+   *     matching.
+   * @return A list of {@link AuthUserDto} containing user details that match the provided filters.
+   */
+  @PostMapping("/batch")
+  List<AuthUserDto> searchUsers(
+      @RequestBody List<String> userIds,
+      @RequestParam(value = "roles", required = false) List<String> roles,
+      @RequestParam(value = "status", required = false) String status,
+      @RequestParam(value = "email", required = false) String email);
 }

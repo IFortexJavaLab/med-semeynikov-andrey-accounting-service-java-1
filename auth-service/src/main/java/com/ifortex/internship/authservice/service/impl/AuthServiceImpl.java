@@ -20,6 +20,7 @@ import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.CookieService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -369,5 +371,84 @@ public class AuthServiceImpl implements AuthService {
     }
     String userId = ((UserDetailsImpl) principle).getUserId();
     return userId;
+  }
+
+  public List<AuthUserDto> searchUsers(
+      List<String> userIds, List<String> roles, String status, String email) {
+    List<User> users = userRepository.findByUserIdIn(userIds);
+
+    Predicate<User> userFilter =
+        filterByRoles(roles).and(filterByStatus(status)).and(filterByEmail(email));
+
+    return users.stream()
+        .filter(userFilter)
+        .map(this::convertToAuthUserDto)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Creates a predicate to filter users by their roles.
+   *
+   * <p>If the {@code roles} parameter is null, no filtering is applied. Otherwise, the predicate
+   * checks if the user's roles match any of the provided roles.
+   *
+   * @param roles List of roles to filter users by (e.g., "ADMIN", "USER"). Can be null.
+   * @return A {@link Predicate} that filters users based on roles.
+   */
+  private Predicate<User> filterByRoles(List<String> roles) {
+    return user ->
+        roles == null
+            || user.getRoles().stream().anyMatch(role -> roles.contains(role.getName().name()));
+  }
+
+  /**
+   * Creates a predicate to filter users by their status.
+   *
+   * <p>If the {@code status} parameter is null, no filtering is applied. Otherwise, the predicate
+   * checks if the user's status matches the provided status (case-insensitive).
+   *
+   * @param status User status to filter by (e.g., "ACTIVE", "BLOCKED"). Can be null.
+   * @return A {@link Predicate} that filters users based on their status.
+   */
+  private Predicate<User> filterByStatus(String status) {
+    return user -> status == null || user.getStatus().name().equalsIgnoreCase(status);
+  }
+
+  /**
+   * Creates a predicate to filter users by their email address.
+   *
+   * <p>If the {@code email} parameter is null, no filtering is applied. Otherwise, the predicate
+   * performs a case-insensitive partial match to filter users by email.
+   *
+   * @param email Email address (or part of it) to filter users by. Can be null.
+   * @return A {@link Predicate} that filters users based on their email.
+   */
+  private Predicate<User> filterByEmail(String email) {
+    return user -> email == null || user.getEmail().toLowerCase().contains(email.toLowerCase());
+  }
+
+  /**
+   * Converts a {@link User} entity to an {@link AuthUserDto}.
+   *
+   * <p>This method extracts relevant fields from the {@link User} entity, including user ID, email,
+   * two-factor authentication status, soft-deletion status, user roles, and account status.
+   *
+   * @param user The {@link User} entity to convert. Cannot be null.
+   * @return An {@link AuthUserDto} representing the user.
+   */
+  private AuthUserDto convertToAuthUserDto(User user) {
+    List<String> roleNames =
+        user.getRoles().stream()
+            .map(Role::getName)
+            .map(UserRole::name)
+            .collect(Collectors.toList());
+
+    return new AuthUserDto()
+        .setUserId(user.getUserId())
+        .setEmail(user.getEmail())
+        .setTwoFactorEnabled(user.isTwoFactorEnabled())
+        .setSoftDeleted(user.isSoftDeleted())
+        .setRoles(roleNames)
+        .setStatus(user.getStatus().name());
   }
 }

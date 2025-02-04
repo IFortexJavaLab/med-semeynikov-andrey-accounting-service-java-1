@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS roles
 
 INSERT INTO roles (id, name)
 VALUES (1, 'ROLE_SUPER_ADMIN'),
-       (2, 'ROLE_ROLE_ADMIN'),
+       (2, 'ROLE_ADMIN'),
        (3, 'ROLE_PARAMEDIC'),
        (4, 'ROLE_SUBSCRIBED_USER'),
        (5, 'ROLE_NON_SUBSCRIBED_USER');

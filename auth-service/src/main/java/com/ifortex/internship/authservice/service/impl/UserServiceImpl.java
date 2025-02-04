@@ -57,7 +57,7 @@ public class UserServiceImpl implements UserService {
     return authUserDto;
   }
 
-  // todo implement with pagination
+
   public List<AuthUserDto> getAllUsers() {
 
     log.debug("Getting all users");

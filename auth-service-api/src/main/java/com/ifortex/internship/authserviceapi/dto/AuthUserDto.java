@@ -16,6 +16,6 @@ public class AuthUserDto {
   private String email;
   private boolean isTwoFactorEnabled;
   private List<String> roles;
-  private boolean isSoftDeleted = false;
+  private boolean isSoftDeleted;
   private String status;
 }

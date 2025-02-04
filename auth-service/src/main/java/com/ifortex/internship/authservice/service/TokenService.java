@@ -3,7 +3,7 @@ package com.ifortex.internship.authservice.service;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
+import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collection;
 import java.util.List;
@@ -34,11 +34,11 @@ public interface TokenService {
    * creates HTTP cookies for storing the new tokens.
    *
    * @param refreshToken the refresh token to validate and refresh
-   * @return a {@link CookieTokensResponse} containing the new tokens as cookies
+   * @return a {@link TokensResponse} containing the new tokens as cookies
    * @throws AuthorizationException if the refresh token is invalid or the associated user is not
    *     found
    */
-  CookieTokensResponse refreshTokens(String refreshToken);
+  TokensResponse refreshTokens(String refreshToken);
 
   /**
    * Validates the provided JWT access token.

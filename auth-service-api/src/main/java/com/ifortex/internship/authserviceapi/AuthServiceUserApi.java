@@ -59,12 +59,33 @@ public interface AuthServiceUserApi {
   @GetMapping("/user")
   ResponseEntity<AuthUserDto> getUserByAuthentication();
 
-
-
+  /**
+   * Updates the two-factor authentication (2FA) setting for a specific user as an administrator.
+   *
+   * <p>This method allows an administrator to enable or disable 2FA for a user by calling the
+   * auth-service endpoint. The update is performed based on the provided {@code userId} and
+   * {@link TwoFactorAuthRequest}.
+   *
+   * @param userId the unique identifier of the user whose 2FA setting needs to be changed.
+   * @param request a {@code TwoFactorAuthRequest} object containing the new 2FA setting.
+   * @return a ResponseEntity containing the updated {@link AuthUserDto} with the new 2FA status.
+   * @throws FeignException if there is an issue with the communication with the auth-service.
+   */
   @PatchMapping("/{userId}/2fa")
   ResponseEntity<AuthUserDto> changeTwoFactorAuthByAdmin(
           @PathVariable("userId") String userId, @RequestBody TwoFactorAuthRequest request);
 
+  /**
+   * Updates the two-factor authentication (2FA) setting for the currently authenticated user.
+   *
+   * <p>This method allows an authenticated user to enable or disable their own 2FA setting by
+   * calling the auth-service endpoint. The update is performed based on the provided
+   * {@link TwoFactorAuthRequest}.
+   *
+   * @param request a {@code TwoFactorAuthRequest} object containing the new 2FA setting.
+   * @return a ResponseEntity containing the updated {@link AuthUserDto} with the new 2FA status.
+   * @throws FeignException if there is an issue with the communication with the auth-service.
+   */
   @PatchMapping("user/2fa")
   ResponseEntity<?> changeTwoFactorAuth(@RequestBody TwoFactorAuthRequest request);
 }

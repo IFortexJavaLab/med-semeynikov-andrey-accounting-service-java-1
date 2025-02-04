@@ -18,7 +18,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
@@ -52,15 +51,15 @@ public class UserController {
     log.info("Attempt to change password for user: {}", userEmail);
     AuthResponse response = userService.changePassword(request, userEmail);
 
-    HttpHeaders headers = new HttpHeaders();
+    /*HttpHeaders headers = new HttpHeaders();
     headers.add(
         HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getAccessCookie().toString());
     headers.add(
-        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getRefreshCookie().toString());
+        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getRefreshCookie().toString());*/
 
     log.info("Logout successful for user: {}", userEmail);
 
-    return ResponseEntity.ok().headers(headers).body(new SuccessResponse(response.getMessage()));
+    return ResponseEntity.ok().body(new SuccessResponse(response.getMessage()));
   }
 
   @PatchMapping("/email")

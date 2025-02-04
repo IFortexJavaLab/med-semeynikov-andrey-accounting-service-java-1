@@ -5,10 +5,9 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.constant.UserRole;
-import com.ifortex.internship.authservice.service.CookieService;
 import com.ifortex.internship.authservice.service.RefreshTokenService;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
+import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
@@ -27,7 +26,6 @@ import java.util.stream.Stream;
 import javax.crypto.SecretKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
@@ -43,11 +41,10 @@ public class TokenServiceImpl implements TokenService {
   private int jwtExpirationMs;
 
   private final RefreshTokenService refreshTokenService;
-  private final CookieService cookieService;
+  //private final CookieService cookieService;
 
-  public TokenServiceImpl(RefreshTokenService refreshTokenService, CookieService cookieService) {
+  public TokenServiceImpl(RefreshTokenService refreshTokenService) {
     this.refreshTokenService = refreshTokenService;
-    this.cookieService = cookieService;
   }
 
   public String generateAccessToken(String email, List<String> roles, String userId) {
@@ -62,7 +59,7 @@ public class TokenServiceImpl implements TokenService {
         .compact();
   }
 
-  public CookieTokensResponse refreshTokens(String refreshToken) {
+  public TokensResponse refreshTokens(String refreshToken) {
     log.debug("Refreshing access token");
 
     try {
@@ -81,11 +78,13 @@ public class TokenServiceImpl implements TokenService {
 
       RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
 
-      ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
+      /*ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
       ResponseCookie refreshTokenCookie =
-          cookieService.createRefreshTokenCookie(newRefreshToken.getToken());
-
-      return new CookieTokensResponse(accessTokenCookie, refreshTokenCookie);
+          cookieService.createRefreshTokenCookie(newRefreshToken.getToken());*/
+      //return new CookieTokensResponse(accessTokenCookie, refreshTokenCookie);
+      
+      return new TokensResponse(newAccessToken, newRefreshToken.getToken());
+      
     } catch (AuthServiceException e) {
       log.debug("Exception message: {}", e.getMessage());
       throw new AuthorizationException("Your session has expired. Please log in again.");

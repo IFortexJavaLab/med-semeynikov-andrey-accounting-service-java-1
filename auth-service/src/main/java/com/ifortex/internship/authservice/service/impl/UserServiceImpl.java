@@ -196,7 +196,7 @@ public class UserServiceImpl implements UserService {
 
     User userFromDb = findUserByEmail(email);
 
-    Boolean newTwoFactorState = request.getEnabled();
+    Boolean newTwoFactorState = request.getIsTwoFactorEnabled();
     if (newTwoFactorState == null) {
       return userMapper.toDto(userFromDb);
     }
@@ -219,7 +219,7 @@ public class UserServiceImpl implements UserService {
 
     User userFromDb = findUserByUserId(userId);
 
-    Boolean newTwoFactorState = request.getEnabled();
+    Boolean newTwoFactorState = request.getIsTwoFactorEnabled();
     if (newTwoFactorState == null) {
       return userMapper.toDto(userFromDb);
     }

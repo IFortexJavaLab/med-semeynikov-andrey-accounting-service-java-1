@@ -1,5 +1,6 @@
 package com.ifortex.internship.authserviceapi.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,8 +8,10 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class AuthResponse {
-  private CookieTokensResponse cookieTokensResponse;
+  private TokensResponse tokens;
+  //private CookieTokensResponse cookieTokensResponse;
   private String email;
   private String message;
 }

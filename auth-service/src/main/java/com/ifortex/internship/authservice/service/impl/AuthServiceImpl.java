@@ -26,8 +26,8 @@ import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.CookieTokensResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
+import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import com.ifortex.internship.usermanagementapi.UserManagementApi;
 import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
 import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
@@ -43,7 +43,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -219,12 +218,11 @@ public class AuthServiceImpl implements AuthService {
     refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
     log.debug("Refresh token deleted successfully for user: {}", userEmail);
 
-    // todo refactor cookie
-    ResponseCookie accessTokenCookie = cookieService.deleteAccessTokenCookie();
-    ResponseCookie refreshTokenCookie = cookieService.deleteRefreshTokenCookie();
+    /*ResponseCookie accessTokenCookie = cookieService.deleteAccessTokenCookie();
+    ResponseCookie refreshTokenCookie = cookieService.deleteRefreshTokenCookie();*/
 
     return AuthResponse.builder()
-        .cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))
+        /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
         .email(userEmail)
         .message(String.format("Logout successful for user %s", userEmail))
         .build();
@@ -333,14 +331,15 @@ public class AuthServiceImpl implements AuthService {
 
     RefreshToken newRefreshToken = tokenService.createRefreshToken(userEmail);
 
-    ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
+    /* ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
     ResponseCookie refreshTokenCookie =
         cookieService.createRefreshTokenCookie(newRefreshToken.getToken());
     log.debug(
-        "Cookies with access and refresh tokens generated successfully for user: {}", userEmail);
+        "Cookies with access and refresh tokens generated successfully for user: {}", userEmail);*/
 
     return AuthResponse.builder()
-        .cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))
+        .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken()))
+        /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
         .email(userEmail)
         .message(String.format("Login successful for user: %s.", userEmail))
         .build();

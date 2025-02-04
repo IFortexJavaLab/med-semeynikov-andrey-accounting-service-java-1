@@ -2,9 +2,7 @@ package com.ifortex.internship.authservice.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
@@ -29,9 +27,7 @@ public class SwaggerConfig {
                     new SecurityScheme()
                         .type(SecurityScheme.Type.HTTP)
                         .scheme("bearer")
-                        .bearerFormat("JWT"))
-                .addHeaders(
-                    "Set-Cookie",
-                    new Header().description("Authentication Cookie").schema(new StringSchema())));
+                        .bearerFormat("JWT")));
+    
   }
 }

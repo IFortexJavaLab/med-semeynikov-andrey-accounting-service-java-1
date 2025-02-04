@@ -57,7 +57,6 @@ public class UserServiceImpl implements UserService {
     return authUserDto;
   }
 
-
   public List<AuthUserDto> getAllUsers() {
 
     log.debug("Getting all users");
@@ -175,6 +174,7 @@ public class UserServiceImpl implements UserService {
                 });
 
     user.setEmail(newEmail);
+    user.setUpdatedAt(LocalDateTime.now());
     userRepository.save(user);
     redisService.deleteOtp(redisKey);
 
@@ -194,46 +194,48 @@ public class UserServiceImpl implements UserService {
 
     log.debug("Changing 2FA for user: {}", email);
 
-    User userFromDb = findUserByEmail(email);
+    User savedUser = findUserByEmail(email);
 
     Boolean newTwoFactorState = request.getIsTwoFactorEnabled();
     if (newTwoFactorState == null) {
-      return userMapper.toDto(userFromDb);
+      return userMapper.toDto(savedUser);
     }
 
-    if (newTwoFactorState == userFromDb.isTwoFactorEnabled()) {
+    if (newTwoFactorState == savedUser.isTwoFactorEnabled()) {
       log.debug("2FA state is the same for user: {}", email);
-      return userMapper.toDto(userFromDb);
+      return userMapper.toDto(savedUser);
     }
 
     log.info("Updating 2FA state for user: {}", email);
-    userFromDb.setTwoFactorEnabled(newTwoFactorState);
-    userRepository.save(userFromDb);
+    savedUser.setTwoFactorEnabled(newTwoFactorState);
+    savedUser.setUpdatedAt(LocalDateTime.now());
+    userRepository.save(savedUser);
 
-    return userMapper.toDto(userFromDb);
+    return userMapper.toDto(savedUser);
   }
 
   @Transactional
   public AuthUserDto changeTwoFactorAuthByAdmin(String userId, TwoFactorAuthRequest request) {
     log.debug("Changing 2FA for user with id: {} by admin", userId);
 
-    User userFromDb = findUserByUserId(userId);
+    User savedUser = findUserByUserId(userId);
 
     Boolean newTwoFactorState = request.getIsTwoFactorEnabled();
     if (newTwoFactorState == null) {
-      return userMapper.toDto(userFromDb);
+      return userMapper.toDto(savedUser);
     }
 
-    if (newTwoFactorState == userFromDb.isTwoFactorEnabled()) {
+    if (newTwoFactorState == savedUser.isTwoFactorEnabled()) {
       log.debug("2FA state is the same for user with id: {}", userId);
-      return userMapper.toDto(userFromDb);
+      return userMapper.toDto(savedUser);
     }
 
     log.info("Updating 2FA state for user with id: {}", userId);
-    userFromDb.setTwoFactorEnabled(newTwoFactorState);
-    userRepository.save(userFromDb);
+    savedUser.setTwoFactorEnabled(newTwoFactorState);
+    savedUser.setUpdatedAt(LocalDateTime.now());
+    userRepository.save(savedUser);
 
-    return userMapper.toDto(userFromDb);
+    return userMapper.toDto(savedUser);
   }
 
   /**

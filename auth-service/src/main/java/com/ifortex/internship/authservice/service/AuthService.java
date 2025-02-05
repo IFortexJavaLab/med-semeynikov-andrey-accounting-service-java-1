@@ -5,13 +5,16 @@ import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistere
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
+import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
+import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 
 import java.util.List;
@@ -40,6 +43,16 @@ public interface AuthService {
    *     database
    */
   SuccessResponse registerUser(RegistrationRequest request);
+
+  /**
+   * Creates a new user with the provided roles and email.
+   *
+   * @param request the {@link CreateUserRequest} containing the email and list of roles to assign to the user.
+   * @return CreateUserResponse containing a success message and the generated temporary password.
+   * @throws EmailAlreadyRegistered if the provided email is already registered in the system.
+   * @throws RegistrationFailedException if the user creation fails during the interaction with the User Management Service.
+   */
+  CreateUserResponse createUser(CreateUserRequest request);
 
   /**
    * Authenticates a user based on the provided login credentials.
@@ -132,6 +145,14 @@ public interface AuthService {
    * @throws AuthorizationException if the user is not authenticated or is anonymous
    */
   String getUserIdFromAuthentication();
+
+  /**
+   * Retrieves the roles of the currently authenticated user from the security context.
+   *
+   * @return the user ID of the authenticated user
+   * @throws AuthorizationException if the user is not authenticated or is anonymous
+   */
+  List<String> getUserRolesFromAuthentication();
 
   /**
    * Retrieves a list of {@link AuthUserDto} based on provided filters.

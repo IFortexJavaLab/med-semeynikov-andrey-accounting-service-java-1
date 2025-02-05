@@ -71,7 +71,7 @@ public class ServiceController {
       description =
           "Retrieve user details based on user IDs, roles, status, and email. Only accessible by ADMIN or SUPER_ADMIN.")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-  @PostMapping("/batch")
+  @PostMapping("/search")
   List<AuthUserDto> searchUsers(
       @RequestBody List<String> userIds,
       @RequestParam(required = false) List<String> roles,

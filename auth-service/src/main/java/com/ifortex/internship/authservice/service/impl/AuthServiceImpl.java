@@ -21,12 +21,14 @@ import com.ifortex.internship.authservice.service.CookieService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.TokenService;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
+import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import com.ifortex.internship.usermanagementapi.UserManagementApi;
@@ -34,9 +36,12 @@ import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManag
 import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
 import jakarta.mail.MessagingException;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -70,6 +75,9 @@ public class AuthServiceImpl implements AuthService {
   private final RedisService redisService;
   private final UserManagementApi userManagementApi;
   private final Environment environment;
+
+  private static final Set<String> VALID_ROLES =
+      Arrays.stream(UserRole.values()).map(Enum::name).collect(Collectors.toSet());
 
   @Getter
   @Value("${app.otp.loginExpirationMinutes}")
@@ -128,6 +136,63 @@ public class AuthServiceImpl implements AuthService {
         String.format("User with email: %s has been successfully registered", user.getEmail());
 
     return new SuccessResponse(message);
+  }
+
+  @Transactional
+  public CreateUserResponse createUser(CreateUserRequest request) {
+
+    log.debug("Creating user: {}", request.getEmail());
+
+    // feature change logic according to soft delete
+    if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+      log.debug("Email: {} is already registered.", request.getEmail());
+      log.info("Failed to create user");
+      throw new EmailAlreadyRegistered("Email: " + request.getEmail() + " is already registered.");
+    }
+
+    boolean isCreatingParamedic = request.getRoles().contains(UserRole.ROLE_PARAMEDIC.name());
+    if (isCreatingParamedic) {
+      log.debug("Creating user with role PARAMEDIC");
+      // todo make request to the paramedic service and save bonus policy and user id there
+      // now it is mocked
+      return null;
+    }
+
+    String password = generateTempPassword();
+    String hashedPassword = passwordEncoder.encode(password);
+
+    List<Role> roles =
+        request.getRoles().stream()
+            .filter(VALID_ROLES::contains)
+            .map(UserRole::valueOf)
+            .map(roleRepository::findByName)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toList());
+
+    User user =
+        new User()
+            .setUserId(UUID.randomUUID().toString())
+            .setEmail(request.getEmail())
+            .setPassword(hashedPassword)
+            .setRoles(roles)
+            .setCreatedAt(LocalDateTime.now())
+            .setUpdatedAt(LocalDateTime.now());
+    userRepository.save(user);
+    log.debug("User: {} saved to db successfully", request.getEmail());
+
+    try {
+      userManagementApi.saveUser(new AuthUserForUserManagementDto(user.getUserId()));
+    } catch (CustomFeignException e) {
+      log.debug(
+          "Error occurred during call to the user management service. Details: {}", e.getMessage());
+      throw new RegistrationFailedException(
+          String.format("Failed to register with email: %s. Try again later", user.getEmail()));
+    }
+
+    log.info("User: {} created successfully", request.getEmail());
+
+    String message = String.format("User: %s created successfully", request.getEmail());
+    return new CreateUserResponse(message, password);
   }
 
   public AuthResponse authenticateUser(LoginRequest loginRequest) {
@@ -266,6 +331,7 @@ public class AuthServiceImpl implements AuthService {
     return new SuccessResponse(message);
   }
 
+  @Transactional
   public SuccessResponse resetPasswordWithOtp(PasswordResetWithOtpDto request) {
 
     String userEmail = request.getEmail();
@@ -314,6 +380,57 @@ public class AuthServiceImpl implements AuthService {
             user.getEmail(), loginLink));
   }
 
+  public String generateOtp() {
+    Random random = new Random();
+    int code = random.nextInt(900000) + 100000;
+    return String.valueOf(code);
+  }
+
+  public String getUserEmailFromAuthentication() {
+    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    if ("anonymousUser".equals(principle.toString())) {
+      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+      throw new AuthorizationException("User is not authenticated. Please log in.");
+    }
+    String userEmail = ((UserDetailsImpl) principle).getEmail();
+    return userEmail;
+  }
+
+  public String getUserIdFromAuthentication() {
+    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    if ("anonymousUser".equals(principle.toString())) {
+      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+      throw new AuthorizationException("User is not authenticated. Please log in.");
+    }
+    String userId = ((UserDetailsImpl) principle).getUserId();
+    return userId;
+  }
+
+  public List<String> getUserRolesFromAuthentication() {
+    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    if ("anonymousUser".equals(principle.toString())) {
+      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+      throw new AuthorizationException("User is not authenticated. Please log in.");
+    }
+    List<String> userRoles =
+        ((UserDetailsImpl) principle)
+            .getAuthorities().stream().map(GrantedAuthority::getAuthority).toList();
+    return userRoles;
+  }
+
+  public List<AuthUserDto> searchUsers(
+      List<String> userIds, List<String> roles, String status, String email) {
+    List<User> users = userRepository.findByUserIdIn(userIds);
+
+    Predicate<User> userFilter =
+        filterByRoles(roles).and(filterByStatus(status)).and(filterByEmail(email));
+
+    return users.stream()
+        .filter(userFilter)
+        .map(this::convertToAuthUserDto)
+        .collect(Collectors.toList());
+  }
+
   /**
    * Constructs an {@link AuthResponse} containing authentication tokens and cookies for the
    * specified user.
@@ -342,48 +459,8 @@ public class AuthServiceImpl implements AuthService {
     return AuthResponse.builder()
         .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken()))
         /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
-        .email(userEmail)
         .message(String.format("Login successful for user: %s.", userEmail))
         .build();
-  }
-
-  public String generateOtp() {
-    Random random = new Random();
-    int code = random.nextInt(900000) + 100000;
-    return String.valueOf(code);
-  }
-
-  public String getUserEmailFromAuthentication() {
-    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    if ("anonymousUser".equals(principle.toString())) {
-      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
-      throw new AuthorizationException("User is not authenticated. Please log in.");
-    }
-    String userEmail = ((UserDetailsImpl) principle).getEmail();
-    return userEmail;
-  }
-
-  public String getUserIdFromAuthentication() {
-    Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    if ("anonymousUser".equals(principle.toString())) {
-      log.debug("Attempt to get user details by anonymous or unauthenticated user.");
-      throw new AuthorizationException("User is not authenticated. Please log in.");
-    }
-    String userId = ((UserDetailsImpl) principle).getUserId();
-    return userId;
-  }
-
-  public List<AuthUserDto> searchUsers(
-      List<String> userIds, List<String> roles, String status, String email) {
-    List<User> users = userRepository.findByUserIdIn(userIds);
-
-    Predicate<User> userFilter =
-        filterByRoles(roles).and(filterByStatus(status)).and(filterByEmail(email));
-
-    return users.stream()
-        .filter(userFilter)
-        .map(this::convertToAuthUserDto)
-        .collect(Collectors.toList());
   }
 
   /**
@@ -450,5 +527,44 @@ public class AuthServiceImpl implements AuthService {
         .setSoftDeleted(user.isSoftDeleted())
         .setRoles(roleNames)
         .setStatus(user.getStatus().name());
+  }
+
+  /**
+   * Generates a temporary password that meets the following criteria:
+   *
+   * <ul>
+   *   <li>Has a fixed length of 8 characters.
+   *   <li>Contains at least one uppercase letter (A–Z).
+   *   <li>Contains at least one digit (0–9).
+   *   <li>Contains at least one special character (@, $, !, %, *, ?, &, #).
+   *   <li>The remaining characters are randomly selected from uppercase letters, lowercase letters,
+   *       digits, and special characters.
+   * </ul>
+   *
+   * <p>The password is generated using a pseudorandom number generator.
+   *
+   * @return a randomly generated temporary password that meets the specified security requirements.
+   */
+  private String generateTempPassword() {
+    String UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    String DIGITS = "0123456789";
+    String SPECIAL_CHARACTERS = "@$!%*?&#";
+    String ALL_ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&#";
+
+    Random random = new Random();
+    int length = 8;
+
+    char upper = UPPERCASE.charAt(random.nextInt(UPPERCASE.length()));
+    char digit = DIGITS.charAt(random.nextInt(DIGITS.length()));
+    char special = SPECIAL_CHARACTERS.charAt(random.nextInt(SPECIAL_CHARACTERS.length()));
+
+    StringBuilder password = new StringBuilder();
+    password.append(upper).append(digit).append(special);
+    for (int i = 3; i < length; i++) {
+      password.append(ALL_ALLOWED.charAt(random.nextInt(ALL_ALLOWED.length())));
+    }
+
+    log.debug("Temporary password generated successfully");
+    return password.toString();
   }
 }

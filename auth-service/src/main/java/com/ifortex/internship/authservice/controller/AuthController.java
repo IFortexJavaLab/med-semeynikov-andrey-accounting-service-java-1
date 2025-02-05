@@ -52,9 +52,8 @@ public class AuthController {
       headers.add(HttpHeaders.SET_COOKIE, authResponse.getCookieTokensResponse().getRefreshCookie().toString());
 
       log.debug("Refresh and access tokens set in cookie for email: {}", loginRequest.getEmail());*/
-    log.info("User: {} successfully logged in", loginRequest.getEmail());
 
-    return ResponseEntity.ok(authResponse.getTokens());
+    return ResponseEntity.ok(authResponse);
   }
 
   @Operation(

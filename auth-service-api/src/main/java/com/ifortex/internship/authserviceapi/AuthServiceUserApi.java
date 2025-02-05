@@ -92,7 +92,7 @@ public interface AuthServiceUserApi {
    *     matching.
    * @return A list of {@link AuthUserDto} containing user details that match the provided filters.
    */
-  @PostMapping("/batch")
+  @PostMapping("/search")
   List<AuthUserDto> searchUsers(
       @RequestBody List<String> userIds,
       @RequestParam(value = "roles", required = false) List<String> roles,

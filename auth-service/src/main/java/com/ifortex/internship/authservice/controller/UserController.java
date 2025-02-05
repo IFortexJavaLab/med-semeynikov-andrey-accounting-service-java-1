@@ -1,0 +1,104 @@
+package com.ifortex.internship.authservice.controller;
+
+import com.ifortex.internship.authservice.model.UserDetailsImpl;
+import com.ifortex.internship.authservice.service.AuthService;
+import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "User Account", description = "User account management")
+@SecurityRequirement(name = "BearerAuth")
+@Validated
+@RestController
+@RequestMapping("/api/v1/account")
+@RequiredArgsConstructor
+@Slf4j
+public class UserController {
+
+  private final UserService userService;
+  private final AuthService authService;
+
+  @Operation(summary = "Change password")
+  @PatchMapping("/password")
+  public ResponseEntity<SuccessResponse> changePassword(
+      @RequestBody ChangePasswordRequest request) {
+
+    String userEmail =
+        ((UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+            .getEmail();
+    log.info("Attempt to change password for user: {}", userEmail);
+    AuthResponse response = userService.changePassword(request, userEmail);
+
+    /*HttpHeaders headers = new HttpHeaders();
+    headers.add(
+        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getAccessCookie().toString());
+    headers.add(
+        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getRefreshCookie().toString());*/
+
+    log.info("Logout successful for user: {}", userEmail);
+
+    return ResponseEntity.ok().body(new SuccessResponse(response.getMessage()));
+  }
+
+  @PatchMapping("/email")
+  public ResponseEntity<?> changeEmail(
+      @RequestParam("newEmail")
+          @Email(message = "Invalid email format")
+          @NotBlank(message = "Email cannot be empty")
+          String newEmail,
+      @RequestParam(required = false, name = "code")
+      @Pattern(
+              regexp = "^\\d{6}$",
+              message = "One-time password must consist of exactly 6 digits")
+      String code) {
+    ChangeEmailResponse response = userService.changeEmail(newEmail, code);
+    return ResponseEntity.ok(response);
+  }
+
+  @Operation(summary = "Request password reset")
+  @PostMapping("/password/reset")
+  public ResponseEntity<?> initiatePasswordReset(@RequestBody @Valid PasswordResetRequest request) {
+
+    log.info("Reset password attempt for user: {}", request.getEmail());
+    SuccessResponse response = authService.initiatePasswordReset(request);
+    log.info("Email with otp to reset password was sent to the email: {}", request.getEmail());
+
+    return ResponseEntity.ok().body(response);
+  }
+
+  @Operation(summary = "Reset password with OTP")
+  @PostMapping("/password/reset-confirm")
+  public ResponseEntity<?> resetPasswordWithOtp(
+      @RequestBody @Valid PasswordResetWithOtpDto request) {
+
+    log.info("Reset password with otp attempt for email: {}", request.getEmail());
+    SuccessResponse response = authService.resetPasswordWithOtp(request);
+
+    return ResponseEntity.ok().body(response.getMessage());
+  }
+
+  
+
+}

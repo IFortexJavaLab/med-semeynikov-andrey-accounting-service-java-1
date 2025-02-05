@@ -1,0 +1,115 @@
+package com.ifortex.internship.authservice.service;
+
+import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
+import com.ifortex.internship.authservice.exception.custom.EmailSendException;
+import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
+import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
+import com.ifortex.internship.authservice.model.User;
+import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
+import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
+import com.ifortex.internship.authserviceapi.dto.request.TwoFactorAuthRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
+
+import java.util.List;
+
+/**
+ * Service interface for managing user-related operations.
+ *
+ * <p>Provides methods for finding users by their unique identifiers or email addresses, as well as
+ * updating sensitive information such as passwords.
+ */
+public interface UserService {
+
+  /**
+   * Changes the password of a user.
+   *
+   * <p>Verifies the current password provided by the user, ensures that the new password meets the
+   * necessary requirements, and updates the password if all validations pass.
+   *
+   * @param request the request containing the current password, new password, and password
+   *     confirmation
+   * @param userEmail the email of the user whose password is to be changed
+   * @return an {@link AuthResponse} object containing the logout information and a message
+   *     indicating successful password change
+   * @throws AuthorizationException if the provided current password does not match the stored
+   *     password
+   * @throws InvalidRequestException if:
+   *     <ul>
+   *       <li>The new password matches the current password.
+   *       <li>The new password does not match the password confirmation.
+   *     </ul>
+   */
+  AuthResponse changePassword(ChangePasswordRequest request, String userEmail);
+
+  /**
+   * Changes the email address of the currently authenticated user. If the verification code (OTP)
+   * is not provided, the method generates and sends a new OTP to the user's current email. If the
+   * OTP is provided, the method verifies it and updates the user's email address accordingly.
+   *
+   * @param newEmail The new email address to update.
+   * @param code The one-time password (OTP) required for email verification (optional).
+   * @return A {@link ChangeEmailResponse} containing either a success message or the updated user
+   *     information.
+   * @throws InvalidRequestException if the new email is the same as the current one.
+   * @throws EmailSendException if an error occurs while sending the verification email.
+   * @throws AuthorizationException if the OTP is expired, invalid, or the user cannot be verified.
+   */
+  ChangeEmailResponse changeEmail(String newEmail, String code);
+
+  /**
+   * Retrieves a user by their userId address and maps the entity to a {@link AuthUserDto}.
+   *
+   * <p>This method fetches the user from the database using their userId address and converts the
+   * {@link User} entity to a {@code AuthUserDto}.
+   *
+   * @param userId the userId address of the user to retrieve.
+   * @return an {@code AuthUserDto} containing the user's data.
+   * @throws EntityNotFoundException if no user is found with the specified userId.
+   */
+  AuthUserDto getUserByUserId(String userId);
+
+  /**
+   * Retrieves all users from the database and maps them to a list of {@link AuthUserDto}.
+   *
+   * <p>This method fetches all user entities from the database and converts each {@link User}
+   * entity to a {@code AuthUserDto} using the {@code userMapper}.
+   *
+   * @return a list of {@code AuthUserDto} objects, each representing a user.
+   */
+  List<AuthUserDto> getAllUsers();
+
+  /**
+   * Retrieves the authenticated user's details.
+   *
+   * <p>This method obtains the currently authenticated user's principal from the security context
+   * and retrieves the corresponding {@link AuthUserDto}. If the user is not authenticated, an
+   * {@link AuthorizationException} is thrown.
+   *
+   * @return the authenticated user's details as an AuthUserDto
+   * @throws AuthorizationException if the user is not authenticated
+   */
+  AuthUserDto getUser();
+
+  /**
+   * Changes the two-factor authentication (2FA) status for the currently authenticated user. If no
+   * new 2FA state is provided in the request, the method returns the user's current data. If the
+   * 2FA state remains unchanged, the method also returns the user without making any updates.
+   *
+   * @param request The request object containing the new 2FA state (true/false).
+   * @return {@link AuthUserDto} representing the user with the updated or unchanged 2FA state.
+   */
+  AuthUserDto changeTwoFactorAuth(TwoFactorAuthRequest request);
+
+  /**
+   * Changes the two-factor authentication (2FA) status for a specific user. This method is intended
+   * for administrators to manage 2FA settings for other users. If no new 2FA state is provided in
+   * the request, the method returns the user's current data. If the 2FA state remains unchanged,
+   * the method also returns the user without making any updates.
+   *
+   * @param userId The ID of the user whose 2FA status is being changed.
+   * @param request The request object containing the new 2FA state (true/false).
+   * @return {@link AuthUserDto} representing the user with the updated or unchanged 2FA state.
+   */
+  AuthUserDto changeTwoFactorAuthByAdmin(String userId, TwoFactorAuthRequest request);
+}

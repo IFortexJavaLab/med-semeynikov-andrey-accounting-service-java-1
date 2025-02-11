@@ -175,4 +175,20 @@ public interface AuthService {
    *     password
    */
   TemporaryPasswordResponse resetPasswordWithTemp(String userId);
+
+  /**
+   * Initiates a password reset request for a user by setting their current password to null and
+   * sending a password reset request email to the user's email address.
+   *
+   * <p>The user will receive an email with a link to reset their password. The email is generated
+   * using the provided template and sent through the email service. The user's password is set to
+   * null, and the associated refresh token is deleted.
+   *
+   * @param userId the ID of the user whose password is to be reset
+   * @return a {@link SuccessResponse} containing a message confirming that the password reset email
+   *     was sent
+   * @throws EntityNotFoundException if the user with the specified ID does not exist
+   * @throws EmailSendException if an error occurs while sending the password reset email
+   */
+  SuccessResponse resetPasswordWithEmail(String userId);
 }

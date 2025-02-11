@@ -4,6 +4,7 @@ import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -58,10 +59,23 @@ public class AdminController {
 
   @Operation(summary = "Reset user's password by generating temp password")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-  @PostMapping("/users/{userId}/temp-password")
+  @PostMapping("/users/{userId}/reset-password-temp")
   public ResponseEntity<?> resetPasswordWithTemp(@PathVariable("userId") String userId) {
 
     TemporaryPasswordResponse response = authService.resetPasswordWithTemp(userId);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "Reset user's password by deleting current password",
+      description =
+          "Reset user's password by deleting current password and sending email to user with request to reset password")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  @PostMapping("/users/{userId}/reset-password-email")
+  public ResponseEntity<?> resetPasswordWithEmail(@PathVariable("userId") String userId) {
+
+    SuccessResponse response = authService.resetPasswordWithEmail(userId);
 
     return ResponseEntity.ok(response);
   }

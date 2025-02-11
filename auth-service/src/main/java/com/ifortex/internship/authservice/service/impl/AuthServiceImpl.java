@@ -37,7 +37,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -53,7 +52,6 @@ public class AuthServiceImpl implements AuthService {
 
   private final UserRepository userRepository;
   private final TokenService tokenService;
-  private final AuthenticationManager authenticationManager;
   private final RefreshTokenRepository refreshTokenRepository;
   private final PasswordEncoder passwordEncoder;
   private final RoleRepository roleRepository;
@@ -212,7 +210,8 @@ public class AuthServiceImpl implements AuthService {
             "Error during sending 2FA verification email for: {}. StackTrace: {}",
             userEmail,
             e.getMessage());
-        throw new EmailSendException("Failed to send 2FA verification email");
+        throw new EmailSendException(
+            String.format("Failed to send 2FA verification email to the: %s", userEmail));
       }
 
       String verifyOtpLink = environment.getProperty("app.link.verifyOtpLogin");
@@ -221,6 +220,7 @@ public class AuthServiceImpl implements AuthService {
               "Two-factor authentication is required to complete your login. A verification code has been sent "
                   + "to your email: %s. Please enter the code along with your email at the following link: %s",
               userEmail, verifyOtpLink);
+      // todo refactor message
       return AuthResponse.builder().message(message).build();
     }
 
@@ -270,7 +270,6 @@ public class AuthServiceImpl implements AuthService {
 
     String userEmail = getUserEmailFromAuthentication();
     log.info("Logout attempt for user: {}", userEmail);
-    log.debug("Deleting refresh token for user: {}", userEmail);
     refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
     log.debug("Refresh token deleted successfully for user: {}", userEmail);
 
@@ -303,10 +302,11 @@ public class AuthServiceImpl implements AuthService {
           "Error during sending verification email for: {}. There details: {}",
           email,
           e.getMessage());
-      throw new EmailSendException("Failed to send verification email");
+      throw new EmailSendException(
+          String.format("Failed to send verification email to the: %s", email));
     }
 
-    String resetPasswordLink = environment.getProperty("app.link.resetPassword");
+    String resetPasswordLink = environment.getProperty("app.link.resetPasswordConfirm");
     String message =
         String.format(
             "An email with a password reset code has been sent to your email: %s, please follow this link: ",
@@ -418,6 +418,8 @@ public class AuthServiceImpl implements AuthService {
 
   @Transactional
   public TemporaryPasswordResponse resetPasswordWithTemp(String userId) {
+    log.debug("Initiating password reset for user with ID: {}", userId);
+
     List<String> currentUserRoles = getUserRolesFromAuthentication();
     boolean isCurrentUserSuperAdmin = currentUserRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
 
@@ -428,7 +430,7 @@ public class AuthServiceImpl implements AuthService {
                 () -> {
                   log.debug("User with ID: {} not found", userId);
                   return new EntityNotFoundException(
-                      String.format("User with email: %s not found", userId));
+                      String.format("User with ID: %s not found", userId));
                 });
 
     checkSuperAdminModification(user, isCurrentUserSuperAdmin);
@@ -444,11 +446,59 @@ public class AuthServiceImpl implements AuthService {
     user.setPassword(null);
     user.setTemporaryPassword(temporaryPassword);
     userRepository.save(user);
+    log.debug("Temporary password created and saved for user ID: {}", userId);
 
     refreshTokenRepository.deleteRefreshTokenByUserEmail(user.getEmail());
     log.debug("Refresh token deleted successfully for user: {}", user.getEmail());
 
     return new TemporaryPasswordResponse(tempPassword);
+  }
+
+  @Transactional
+  public SuccessResponse resetPasswordWithEmail(String userId) {
+    log.debug("Initiating password reset request email for user with ID: {}", userId);
+
+    List<String> currentUserRoles = getUserRolesFromAuthentication();
+    boolean isCurrentUserSuperAdmin = currentUserRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
+
+    User user =
+        userRepository
+            .findByUserId(userId)
+            .orElseThrow(
+                () -> {
+                  log.debug("User with ID: {} not found", userId);
+                  return new EntityNotFoundException(
+                      String.format("User with ID: %s not found", userId));
+                });
+
+    String userEmail = user.getEmail();
+
+    checkSuperAdminModification(user, isCurrentUserSuperAdmin);
+    deleteOldTemporaryPassword(user);
+
+    user.setPassword(null);
+    userRepository.save(user);
+    log.debug("Password set to null for user ID: {}", userId);
+
+    refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
+    log.debug("Refresh token deleted successfully for user: {}", userEmail);
+
+    String resetLinkTemplate = environment.getProperty("app.link.resetPasswordEmail", String.class);
+    assert resetLinkTemplate != null;
+    String resetLink = String.format(resetLinkTemplate, userEmail);
+    try {
+      emailService.sendPasswordResetRequestEmail(userEmail, "Password reset", resetLink);
+    } catch (MessagingException e) {
+      log.error(
+          "Error during sending 2FA verification email for: {}. StackTrace: {}",
+          userEmail,
+          e.getMessage());
+      throw new EmailSendException(
+          String.format("Failed to send Password reset request to the email: %s", userEmail));
+    }
+
+    String message = String.format("Password reset request email sent to: %s.", userEmail);
+    return new SuccessResponse(message);
   }
 
   /**

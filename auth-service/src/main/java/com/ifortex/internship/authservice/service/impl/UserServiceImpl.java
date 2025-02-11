@@ -253,7 +253,7 @@ public class UserServiceImpl implements UserService {
             () -> {
               log.debug("User with ID: {} not found", userId);
               return new EntityNotFoundException(
-                  String.format("User with email: %s not found", userId));
+                  String.format("User with ID: %s not found", userId));
             });
   }
 

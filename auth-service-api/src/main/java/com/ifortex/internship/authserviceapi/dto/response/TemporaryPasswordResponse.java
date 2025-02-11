@@ -7,9 +7,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
-public class SuccessResponse {
-  private String message;
-  private String link;
+@AllArgsConstructor
+public class TemporaryPasswordResponse {
+  private String tempPassword;
 }

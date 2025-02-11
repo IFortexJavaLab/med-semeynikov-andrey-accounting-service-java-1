@@ -3,12 +3,11 @@ package com.ifortex.internship.authservice.config;
 import com.ifortex.internship.authservice.filter.AuthEntryPointJwt;
 import com.ifortex.internship.authservice.filter.AuthTokenFilter;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authservice.service.impl.UserDetailsServiceImpl;
+import com.ifortex.internship.authservice.service.impl.CustomAuthenticationProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,8 +26,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class AuthSecurityConfig {
 
   private final TokenService tokenService;
-  private final UserDetailsServiceImpl userDetailsService;
   private final AuthEntryPointJwt unauthorizedHandler;
+  private final CustomAuthenticationProvider authenticationProvider;
 
   @Bean
   public AuthTokenFilter authenticationJwtTokenFilter() {
@@ -59,22 +58,12 @@ public class AuthSecurityConfig {
                     .authenticated())
         .exceptionHandling(c -> c.authenticationEntryPoint(unauthorizedHandler));
 
-    http.authenticationProvider(authenticationProvider());
+    http.authenticationProvider(authenticationProvider);
 
     http.addFilterBefore(
         authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
-  }
-
-  @Bean
-  public DaoAuthenticationProvider authenticationProvider() {
-    DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-
-    authProvider.setUserDetailsService(userDetailsService);
-    authProvider.setPasswordEncoder(passwordEncoder());
-
-    return authProvider;
   }
 
   @Bean

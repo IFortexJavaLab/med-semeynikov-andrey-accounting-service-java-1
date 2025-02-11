@@ -109,7 +109,7 @@ public interface AuthService {
    * @throws EntityNotFoundException if no user is found with the provided email address.
    * @throws EmailSendException if an error occurs while sending the email with the OTP.
    */
-  SuccessResponse initiatePasswordReset(PasswordResetRequest passwordResetRequest);
+  SuccessResponse initiatePasswordReset(String email);
 
   /**
    * Resets the user's password using a one-time password (OTP) sent to their email.
@@ -169,4 +169,17 @@ public interface AuthService {
    */
   List<AuthUserDto> searchUsers(
       List<String> userIds, List<String> roles, String status, String email);
+
+  /**
+   * Resets the password for the user with the specified userId by generating a temporary password.
+   * The method performs validation to ensure that only super admins can reset passwords for super
+   * admins. Deletes any existing temporary passwords and deletes refresh tokens for the user.
+   *
+   * @param userId the ID of the user whose password is to be reset
+   * @return a response containing the newly generated temporary password
+   * @throws EntityNotFoundException if the user with the given ID is not found
+   * @throws SuperAdminModificationException if a non-super admin attempts to modify a super admin's
+   *     password
+   */
+  TemporaryPasswordResponse resetPasswordWithTemp(String userId);
 }

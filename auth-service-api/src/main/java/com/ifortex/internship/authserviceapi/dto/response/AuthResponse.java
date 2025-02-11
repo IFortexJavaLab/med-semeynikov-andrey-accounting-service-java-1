@@ -11,7 +11,8 @@ import lombok.Setter;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AuthResponse {
   private TokensResponse tokens;
-  //private CookieTokensResponse cookieTokensResponse;
   private String email;
   private String message;
+  private String link;
+  // todo add expiration time for tokens
 }

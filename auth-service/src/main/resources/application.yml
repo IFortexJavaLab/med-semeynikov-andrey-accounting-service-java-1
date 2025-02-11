@@ -43,6 +43,8 @@ app:
   otp:
     loginExpirationMinutes: 5
     emailExpirationMinutes: 60
+  tempPassword:
+    expirationHours: 48
   link:
     verifyOtpLogin: http://localhost:8085/api/v1/auth/login/verify-otp.
     resetPassword: http://localhost:8085/api/v1/account/password/reset-confirm

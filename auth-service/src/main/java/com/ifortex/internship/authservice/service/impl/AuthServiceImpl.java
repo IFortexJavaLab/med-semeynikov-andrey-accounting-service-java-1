@@ -54,7 +54,6 @@ public class AuthServiceImpl implements AuthService {
   private final UserRepository userRepository;
   private final TokenService tokenService;
   private final AuthenticationManager authenticationManager;
-  private final CookieService cookieService;
   private final RefreshTokenRepository refreshTokenRepository;
   private final PasswordEncoder passwordEncoder;
   private final RoleRepository roleRepository;
@@ -75,11 +74,11 @@ public class AuthServiceImpl implements AuthService {
   private int tempPasswordExpirationHours;
 
   @Transactional
-  public SuccessResponse registerUser(RegistrationRequest request) {
+  public void registerUser(RegistrationRequest request) {
 
     log.debug("Register user: {}", request.getEmail());
 
-    // feature change logic according to soft delete
+    // todo feature change logic according to soft delete
     if (userRepository.findByEmail(request.getEmail()).isPresent()) {
       log.debug("Email: {} is already registered.", request.getEmail());
       log.info("Failed to register user");
@@ -122,11 +121,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     log.info("User: {} register successfully", request.getEmail());
-
-    String message =
-        String.format("User with email: %s has been successfully registered", user.getEmail());
-
-    return new SuccessResponse(message);
   }
 
   @Transactional
@@ -134,7 +128,7 @@ public class AuthServiceImpl implements AuthService {
 
     log.debug("Creating user: {}", request.getEmail());
 
-    // feature change logic according to soft delete
+    // todo feature change logic according to soft delete
     if (userRepository.findByEmail(request.getEmail()).isPresent()) {
       log.debug("Email: {} is already registered.", request.getEmail());
       log.info("Failed to create user");
@@ -275,16 +269,13 @@ public class AuthServiceImpl implements AuthService {
   public AuthResponse logoutUser() {
 
     String userEmail = getUserEmailFromAuthentication();
+    log.info("Logout attempt for user: {}", userEmail);
     log.debug("Deleting refresh token for user: {}", userEmail);
     refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
     log.debug("Refresh token deleted successfully for user: {}", userEmail);
 
-    /*ResponseCookie accessTokenCookie = cookieService.deleteAccessTokenCookie();
-    ResponseCookie refreshTokenCookie = cookieService.deleteRefreshTokenCookie();*/
-
+    log.info("Logout successful for user: {}", userEmail);
     return AuthResponse.builder()
-        /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
-        .email(userEmail)
         .message(String.format("Logout successful for user %s", userEmail))
         .build();
   }
@@ -321,7 +312,7 @@ public class AuthServiceImpl implements AuthService {
             "An email with a password reset code has been sent to your email: %s, please follow this link: ",
             email);
 
-    return new SuccessResponse(message);
+    return new SuccessResponse(message, resetPasswordLink);
   }
 
   @Transactional
@@ -512,16 +503,8 @@ public class AuthServiceImpl implements AuthService {
 
     RefreshToken newRefreshToken = tokenService.createRefreshToken(userEmail);
 
-    /* ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
-    ResponseCookie refreshTokenCookie =
-        cookieService.createRefreshTokenCookie(newRefreshToken.getToken());
-    log.debug(
-        "Cookies with access and refresh tokens generated successfully for user: {}", userEmail);*/
-
     return AuthResponse.builder()
         .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken()))
-        /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
-        .message(String.format("Login successful for user: %s.", userEmail))
         .build();
   }
 

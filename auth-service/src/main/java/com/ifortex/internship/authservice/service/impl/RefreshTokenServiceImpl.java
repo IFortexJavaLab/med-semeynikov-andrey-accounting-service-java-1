@@ -56,9 +56,9 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     boolean isTokenExpired = refreshToken.getExpiryDate().isBefore(Instant.now());
 
     if (isTokenExpired) {
-      log.warn(
+      log.debug(
           "Refresh token has expired. UserId={}, ExpiryDate={}",
-          refreshToken.getUser().getId(),
+          refreshToken.getUser().getUserId(),
           refreshToken.getExpiryDate());
       log.debug("Deleting refresh token from db");
       refreshTokenRepository.delete(refreshToken);
@@ -69,7 +69,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     log.debug(
         "Refresh token is valid. UserId = {}, ExpiryDate = {}",
-        refreshToken.getUser().getId(),
+        refreshToken.getUser().getUserId(),
         refreshToken.getExpiryDate());
     return refreshToken;
   }

@@ -41,7 +41,6 @@ public class TokenServiceImpl implements TokenService {
   private int jwtExpirationMs;
 
   private final RefreshTokenService refreshTokenService;
-  //private final CookieService cookieService;
 
   public TokenServiceImpl(RefreshTokenService refreshTokenService) {
     this.refreshTokenService = refreshTokenService;
@@ -77,11 +76,6 @@ public class TokenServiceImpl implements TokenService {
       log.debug("Access token refreshed successfully for user: {}", user.getEmail());
 
       RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
-
-      /*ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
-      ResponseCookie refreshTokenCookie =
-          cookieService.createRefreshTokenCookie(newRefreshToken.getToken());*/
-      //return new CookieTokensResponse(accessTokenCookie, refreshTokenCookie);
       
       return new TokensResponse(newAccessToken, newRefreshToken.getToken());
       

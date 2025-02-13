@@ -40,8 +40,13 @@ public class User {
   @Column(nullable = false)
   private String email;
 
-  @Column(nullable = false)
-  private String password;
+  @Column() private String password;
+
+  @OneToOne(
+      mappedBy = "user",
+      cascade = {CascadeType.MERGE, CascadeType.PERSIST},
+      orphanRemoval = true)
+  private TemporaryPassword temporaryPassword;
 
   @Column(nullable = false)
   private boolean isTwoFactorEnabled = true;

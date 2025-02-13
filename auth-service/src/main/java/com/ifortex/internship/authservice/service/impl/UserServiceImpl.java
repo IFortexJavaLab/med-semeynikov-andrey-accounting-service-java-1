@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class UserServiceImpl implements UserService {
   private final RedisService redisService;
   private final EmailService emailService;
   private final Environment environment;
+  private final CustomAuthenticationProvider authenticationProvider;
 
   public AuthUserDto getUserByUserId(String userId) {
     log.debug("Getting user by userId: {}", userId);
@@ -74,14 +76,11 @@ public class UserServiceImpl implements UserService {
 
     User user = findUserByEmail(userEmail);
 
-    if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-      log.info("Incorrect password for user with email: {}", user.getEmail());
-      throw new AuthorizationException(
-          String.format("Incorrect password for user with email: %s", user.getEmail()));
-    }
+    authenticationProvider.authenticate(
+        new UsernamePasswordAuthenticationToken(userEmail, request.getCurrentPassword()));
 
-    if (request.getCurrentPassword().equals(request.getPasswordConfirmation())) {
-      log.info(
+    if (request.getCurrentPassword().equals(request.getNewPassword())) {
+      log.debug(
           "Current password and new password are equal for user with email: {}", user.getEmail());
       throw new InvalidRequestException(
           String.format(
@@ -91,7 +90,7 @@ public class UserServiceImpl implements UserService {
 
     boolean passwordMismatch = !request.getNewPassword().equals(request.getPasswordConfirmation());
     if (passwordMismatch) {
-      log.info(
+      log.debug(
           "Password and password confirmation  do not match for user with email: {}",
           user.getEmail());
       throw new InvalidRequestException("Password and confirmation password do not match.");
@@ -100,6 +99,7 @@ public class UserServiceImpl implements UserService {
     String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
     user.setPassword(newEncodedPassword);
     user.setUpdatedAt(LocalDateTime.now());
+    user.setTemporaryPassword(null);
     userRepository.save(user);
 
     log.info("User with email: {} successfully changed password", userEmail);
@@ -108,11 +108,12 @@ public class UserServiceImpl implements UserService {
 
     String message =
         String.format(
-            "Changed password successfully for user with email %s, please log in again using this link: %s",
-            user.getEmail(), link);
+            "Changed password successfully for user with email %s, please log in again using this link: ",
+            user.getEmail());
 
     AuthResponse authResponse = authService.logoutUser();
     authResponse.setMessage(message);
+    authResponse.setLink(link);
 
     return authResponse;
   }
@@ -252,7 +253,7 @@ public class UserServiceImpl implements UserService {
             () -> {
               log.debug("User with ID: {} not found", userId);
               return new EntityNotFoundException(
-                  String.format("User with email: %s not found", userId));
+                  String.format("User with ID: %s not found", userId));
             });
   }
 

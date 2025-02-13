@@ -1,36 +1,24 @@
 package com.ifortex.internship.authservice.service.impl;
 
 import com.ifortex.internship.authservice.email.EmailService;
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
-import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
-import com.ifortex.internship.authservice.exception.custom.EmailSendException;
-import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
-import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
-import com.ifortex.internship.authservice.model.RefreshToken;
-import com.ifortex.internship.authservice.model.Role;
-import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.model.UserDetailsImpl;
+import com.ifortex.internship.authservice.exception.custom.*;
+import com.ifortex.internship.authservice.model.*;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
 import com.ifortex.internship.authservice.repository.RoleRepository;
+import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
 import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.service.AuthService;
-import com.ifortex.internship.authservice.service.CookieService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.TokenService;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
-import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
-import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
+import com.ifortex.internship.authserviceapi.dto.response.*;
 import com.ifortex.internship.usermanagementapi.UserManagementApi;
 import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
 import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
@@ -45,12 +33,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -66,29 +52,31 @@ public class AuthServiceImpl implements AuthService {
 
   private final UserRepository userRepository;
   private final TokenService tokenService;
-  private final AuthenticationManager authenticationManager;
-  private final CookieService cookieService;
   private final RefreshTokenRepository refreshTokenRepository;
   private final PasswordEncoder passwordEncoder;
   private final RoleRepository roleRepository;
   private final EmailService emailService;
   private final RedisService redisService;
   private final UserManagementApi userManagementApi;
+  private final CustomAuthenticationProvider authenticationProvider;
+  private final TemporaryPasswordRepository passwordRepository;
   private final Environment environment;
 
   private static final Set<String> VALID_ROLES =
       Arrays.stream(UserRole.values()).map(Enum::name).collect(Collectors.toSet());
 
-  @Getter
   @Value("${app.otp.loginExpirationMinutes}")
-  private int expirationMinutes;
+  private int loginOtpExpirationMinutes;
+
+  @Value("${app.tempPassword.expirationHours}")
+  private int tempPasswordExpirationHours;
 
   @Transactional
-  public SuccessResponse registerUser(RegistrationRequest request) {
+  public void registerUser(RegistrationRequest request) {
 
     log.debug("Register user: {}", request.getEmail());
 
-    // feature change logic according to soft delete
+    // todo feature change logic according to soft delete
     if (userRepository.findByEmail(request.getEmail()).isPresent()) {
       log.debug("Email: {} is already registered.", request.getEmail());
       log.info("Failed to register user");
@@ -131,11 +119,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     log.info("User: {} register successfully", request.getEmail());
-
-    String message =
-        String.format("User with email: %s has been successfully registered", user.getEmail());
-
-    return new SuccessResponse(message);
   }
 
   @Transactional
@@ -143,7 +126,7 @@ public class AuthServiceImpl implements AuthService {
 
     log.debug("Creating user: {}", request.getEmail());
 
-    // feature change logic according to soft delete
+    // todo feature change logic according to soft delete
     if (userRepository.findByEmail(request.getEmail()).isPresent()) {
       log.debug("Email: {} is already registered.", request.getEmail());
       log.info("Failed to create user");
@@ -158,8 +141,7 @@ public class AuthServiceImpl implements AuthService {
       return null;
     }
 
-    String password = generateTempPassword();
-    String hashedPassword = passwordEncoder.encode(password);
+    String userId = UUID.randomUUID().toString();
 
     List<Role> roles =
         request.getRoles().stream()
@@ -169,14 +151,18 @@ public class AuthServiceImpl implements AuthService {
             .flatMap(Optional::stream)
             .collect(Collectors.toList());
 
-    User user =
-        new User()
-            .setUserId(UUID.randomUUID().toString())
-            .setEmail(request.getEmail())
-            .setPassword(hashedPassword)
-            .setRoles(roles)
-            .setCreatedAt(LocalDateTime.now())
-            .setUpdatedAt(LocalDateTime.now());
+    User user = new User().setUserId(userId).setEmail(request.getEmail()).setRoles(roles);
+
+    String password = generateTempPassword();
+    String hashedPassword = passwordEncoder.encode(password);
+
+    TemporaryPassword temporaryPassword =
+        new TemporaryPassword(
+            user, hashedPassword, LocalDateTime.now().plusHours(tempPasswordExpirationHours));
+
+    user.setTemporaryPassword(temporaryPassword)
+        .setCreatedAt(LocalDateTime.now())
+        .setUpdatedAt(LocalDateTime.now());
     userRepository.save(user);
     log.debug("User: {} saved to db successfully", request.getEmail());
 
@@ -201,20 +187,19 @@ public class AuthServiceImpl implements AuthService {
     log.debug("Authenticating user with email: {}", userEmail);
 
     Authentication authentication =
-        authenticationManager.authenticate(
+        authenticationProvider.authenticate(
             new UsernamePasswordAuthenticationToken(userEmail, loginRequest.getPassword()));
 
     SecurityContextHolder.getContext().setAuthentication(authentication);
     log.debug("User: {} successfully authenticated.", userEmail);
-
-    UserDetailsImpl user = (UserDetailsImpl) authentication.getPrincipal();
+    User user = (User) authentication.getPrincipal();
 
     if (user.isTwoFactorEnabled()) {
       log.debug("User: {} has 2FA enabled. Sending OTP", userEmail);
 
       String otp = generateOtp();
       String redisKey = RedisKeyPrefix.LOGIN_OTP.getPrefix() + userEmail;
-      redisService.saveOtp(redisKey, otp, expirationMinutes);
+      redisService.saveOtp(redisKey, otp, loginOtpExpirationMinutes);
       log.debug("Otp for user: {} generated and saved successfully", userEmail);
 
       // feature refactor method with dotry
@@ -225,7 +210,8 @@ public class AuthServiceImpl implements AuthService {
             "Error during sending 2FA verification email for: {}. StackTrace: {}",
             userEmail,
             e.getMessage());
-        throw new EmailSendException("Failed to send 2FA verification email");
+        throw new EmailSendException(
+            String.format("Failed to send 2FA verification email to the: %s", userEmail));
       }
 
       String verifyOtpLink = environment.getProperty("app.link.verifyOtpLogin");
@@ -234,17 +220,17 @@ public class AuthServiceImpl implements AuthService {
               "Two-factor authentication is required to complete your login. A verification code has been sent "
                   + "to your email: %s. Please enter the code along with your email at the following link: %s",
               userEmail, verifyOtpLink);
+      // todo refactor message
       return AuthResponse.builder().message(message).build();
     }
 
     List<String> roles =
-        user.getAuthorities().stream()
-            .map(GrantedAuthority::getAuthority)
-            .collect(Collectors.toList());
+        user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
 
     return buildAuthResponse(userEmail, roles, user.getUserId());
   }
 
+  @Transactional
   public AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest request) {
 
     String userEmail = request.getEmail();
@@ -256,9 +242,11 @@ public class AuthServiceImpl implements AuthService {
 
     if (!otpFromRequest.equals(storedOtp)) {
       log.debug("OTP has expired or is invalid for email: {}", userEmail);
-      log.info("Failed to reset password for user: {}", userEmail);
+      log.info("Failed to login for user: {}", userEmail);
       throw new AuthorizationException("OTP has expired or is invalid. Please try again.");
     }
+
+    redisService.deleteOtp(redisKey);
 
     var user =
         userRepository
@@ -281,54 +269,50 @@ public class AuthServiceImpl implements AuthService {
   public AuthResponse logoutUser() {
 
     String userEmail = getUserEmailFromAuthentication();
-    log.debug("Deleting refresh token for user: {}", userEmail);
+    log.info("Logout attempt for user: {}", userEmail);
     refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
     log.debug("Refresh token deleted successfully for user: {}", userEmail);
 
-    /*ResponseCookie accessTokenCookie = cookieService.deleteAccessTokenCookie();
-    ResponseCookie refreshTokenCookie = cookieService.deleteRefreshTokenCookie();*/
-
+    log.info("Logout successful for user: {}", userEmail);
     return AuthResponse.builder()
-        /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
-        .email(userEmail)
         .message(String.format("Logout successful for user %s", userEmail))
         .build();
   }
 
-  public SuccessResponse initiatePasswordReset(PasswordResetRequest passwordResetRequest) {
+  public SuccessResponse initiatePasswordReset(String email) {
 
-    String userEmail = passwordResetRequest.getEmail();
-    log.debug("Initiating password reset for email: {}", userEmail);
+    log.debug("Initiating password reset for email: {}", email);
 
-    if (userRepository.findByEmail(userEmail).isEmpty()) {
-      log.debug("User with email: {} not found", userEmail);
-      throw new EntityNotFoundException(String.format("User with email: %s not found", userEmail));
+    if (userRepository.findByEmail(email).isEmpty()) {
+      log.debug("User with email: {} not found", email);
+      throw new EntityNotFoundException(String.format("User with email: %s not found", email));
     }
 
     String otp = generateOtp();
-    log.debug("Otp for user: {} generated successfully", userEmail);
+    log.debug("Otp for user: {} generated successfully", email);
 
-    String redisKey = RedisKeyPrefix.PASSWORD_RESET.getPrefix() + userEmail;
-    redisService.saveOtp(redisKey, otp, expirationMinutes);
-    log.debug("Otp saved to db successfully for user: {}", userEmail);
+    String redisKey = RedisKeyPrefix.PASSWORD_RESET.getPrefix() + email;
+    redisService.saveOtp(redisKey, otp, loginOtpExpirationMinutes);
+    log.debug("Otp saved to db successfully for user: {}", email);
 
     try {
-      emailService.sendVerificationEmail(userEmail, "Password reset", otp);
+      emailService.sendVerificationEmail(email, "Password reset", otp);
     } catch (MessagingException e) {
       log.error(
           "Error during sending verification email for: {}. There details: {}",
-          userEmail,
+          email,
           e.getMessage());
-      throw new EmailSendException("Failed to send verification email");
+      throw new EmailSendException(
+          String.format("Failed to send verification email to the: %s", email));
     }
 
-    String resetPasswordLink = environment.getProperty("app.link.resetPassword");
+    String resetPasswordLink = environment.getProperty("app.link.resetPasswordConfirm");
     String message =
         String.format(
-            "An email with a password reset code has been sent to your email: %s, please follow this link: %s",
-            userEmail, resetPasswordLink);
+            "An email with a password reset code has been sent to your email: %s, please follow this link: ",
+            email);
 
-    return new SuccessResponse(message);
+    return new SuccessResponse(message, resetPasswordLink);
   }
 
   @Transactional
@@ -365,6 +349,7 @@ public class AuthServiceImpl implements AuthService {
 
     String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
     user.setPassword(newEncodedPassword);
+    user.setTemporaryPassword(null);
     user.setUpdatedAt(LocalDateTime.now());
     userRepository.save(user);
 
@@ -373,11 +358,11 @@ public class AuthServiceImpl implements AuthService {
     log.info("User with email: {} successfully changed password", userEmail);
 
     String loginLink = environment.getProperty("app.link.login");
-
-    return new SuccessResponse(
+    String message =
         String.format(
-            "Changed password successfully for user with email %s, please log in again using this link: %s",
-            user.getEmail(), loginLink));
+            "Changed password successfully for user with email %s, please log in again using this link: ",
+            user.getEmail());
+    return new SuccessResponse(message, loginLink);
   }
 
   public String generateOtp() {
@@ -431,17 +416,135 @@ public class AuthServiceImpl implements AuthService {
         .collect(Collectors.toList());
   }
 
+  @Transactional
+  public TemporaryPasswordResponse resetPasswordWithTemp(String userId) {
+    log.debug("Initiating password reset for user with ID: {}", userId);
+
+    List<String> currentUserRoles = getUserRolesFromAuthentication();
+    boolean isCurrentUserSuperAdmin = currentUserRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
+
+    User user =
+        userRepository
+            .findByUserId(userId)
+            .orElseThrow(
+                () -> {
+                  log.debug("User with ID: {} not found", userId);
+                  return new EntityNotFoundException(
+                      String.format("User with ID: %s not found", userId));
+                });
+
+    checkSuperAdminModification(user, isCurrentUserSuperAdmin);
+
+    deleteOldTemporaryPassword(user);
+
+    String tempPassword = generateTempPassword();
+    String hashedPassword = passwordEncoder.encode(tempPassword);
+    var temporaryPassword =
+        new TemporaryPassword(
+            user, hashedPassword, LocalDateTime.now().plusHours(tempPasswordExpirationHours));
+
+    user.setPassword(null);
+    user.setTemporaryPassword(temporaryPassword);
+    userRepository.save(user);
+    log.debug("Temporary password created and saved for user ID: {}", userId);
+
+    refreshTokenRepository.deleteRefreshTokenByUserEmail(user.getEmail());
+    log.debug("Refresh token deleted successfully for user: {}", user.getEmail());
+
+    return new TemporaryPasswordResponse(tempPassword);
+  }
+
+  @Transactional
+  public SuccessResponse resetPasswordWithEmail(String userId) {
+    log.debug("Initiating password reset request email for user with ID: {}", userId);
+
+    List<String> currentUserRoles = getUserRolesFromAuthentication();
+    boolean isCurrentUserSuperAdmin = currentUserRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
+
+    User user =
+        userRepository
+            .findByUserId(userId)
+            .orElseThrow(
+                () -> {
+                  log.debug("User with ID: {} not found", userId);
+                  return new EntityNotFoundException(
+                      String.format("User with ID: %s not found", userId));
+                });
+
+    String userEmail = user.getEmail();
+
+    checkSuperAdminModification(user, isCurrentUserSuperAdmin);
+    deleteOldTemporaryPassword(user);
+
+    user.setPassword(null);
+    userRepository.save(user);
+    log.debug("Password set to null for user ID: {}", userId);
+
+    refreshTokenRepository.deleteRefreshTokenByUserEmail(userEmail);
+    log.debug("Refresh token deleted successfully for user: {}", userEmail);
+
+    String resetLinkTemplate = environment.getProperty("app.link.resetPasswordEmail", String.class);
+    assert resetLinkTemplate != null;
+    String resetLink = String.format(resetLinkTemplate, userEmail);
+    try {
+      emailService.sendPasswordResetRequestEmail(userEmail, "Password reset", resetLink);
+    } catch (MessagingException e) {
+      log.error(
+          "Error during sending 2FA verification email for: {}. StackTrace: {}",
+          userEmail,
+          e.getMessage());
+      throw new EmailSendException(
+          String.format("Failed to send Password reset request to the email: %s", userEmail));
+    }
+
+    String message = String.format("Password reset request email sent to: %s.", userEmail);
+    return new SuccessResponse(message);
+  }
+
   /**
-   * Constructs an {@link AuthResponse} containing authentication tokens and cookies for the
-   * specified user.
+   * Checks if the current user has permission to modify a user with the ROLE_SUPER_ADMIN role.
+   * Throws an exception if the current user is not a super admin and attempts to modify a super
+   * admin.
    *
-   * <p>This method generates a new access token and refresh token for the user, creates cookies to
-   * store the tokens, and packages them into an AuthResponse.
+   * @param user the user to be modified
+   * @param isCurrentUserSuperAdmin whether the current user is a super admin
+   * @throws SuperAdminModificationException if the current user is not a super admin and tries to
+   *     modify a super admin
+   */
+  private void checkSuperAdminModification(User user, boolean isCurrentUserSuperAdmin) {
+    boolean isEditedUserSuperAdmin =
+        user.getRoles().stream().anyMatch(role -> role.getName() == UserRole.ROLE_SUPER_ADMIN);
+
+    if (isEditedUserSuperAdmin && !isCurrentUserSuperAdmin) {
+      log.debug("Attempt to reset password for ROLE_SUPER_ADMIN with ROLE_ADMIN");
+      throw new SuperAdminModificationException("Access denied");
+    }
+  }
+
+  /**
+   * Deletes the old temporary password for the specified user, if it exists. Sets the user's
+   * temporary password to null after deletion.
+   *
+   * @param user the user whose old temporary password will be deleted
+   */
+  private void deleteOldTemporaryPassword(User user) {
+    if (user.getTemporaryPassword() != null) {
+      passwordRepository.delete(user.getTemporaryPassword());
+      user.setTemporaryPassword(null);
+      passwordRepository.flush();
+      log.debug("Deleted previous temp password for user ID: {}", user.getUserId());
+    }
+  }
+
+  /**
+   * Constructs an {@link AuthResponse} containing authentication tokens for the specified user.
+   *
+   * <p>This method generates a new access token and refresh token for the user and packages them
+   * into an AuthResponse.
    *
    * @param userEmail the email of the authenticated user
    * @param roles the roles assigned to the user
-   * @return an AuthResponse containing access and refresh token cookies, as well as a success
-   *     message
+   * @return an AuthResponse containing access and refresh token
    */
   private AuthResponse buildAuthResponse(String userEmail, List<String> roles, String userId) {
 
@@ -450,16 +553,8 @@ public class AuthServiceImpl implements AuthService {
 
     RefreshToken newRefreshToken = tokenService.createRefreshToken(userEmail);
 
-    /* ResponseCookie accessTokenCookie = cookieService.createAccessTokenCookie(newAccessToken);
-    ResponseCookie refreshTokenCookie =
-        cookieService.createRefreshTokenCookie(newRefreshToken.getToken());
-    log.debug(
-        "Cookies with access and refresh tokens generated successfully for user: {}", userEmail);*/
-
     return AuthResponse.builder()
         .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken()))
-        /*.cookieTokensResponse(new CookieTokensResponse(accessTokenCookie, refreshTokenCookie))*/
-        .message(String.format("Login successful for user: %s.", userEmail))
         .build();
   }
 

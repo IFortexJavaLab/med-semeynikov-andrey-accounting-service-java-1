@@ -4,7 +4,6 @@ import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.UserService;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
@@ -43,7 +42,7 @@ public class UserController {
   @Operation(summary = "Change password")
   @PatchMapping("/password")
   public ResponseEntity<SuccessResponse> changePassword(
-      @RequestBody ChangePasswordRequest request) {
+      @RequestBody @Valid ChangePasswordRequest request) {
 
     String userEmail =
         ((UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal())
@@ -51,39 +50,38 @@ public class UserController {
     log.info("Attempt to change password for user: {}", userEmail);
     AuthResponse response = userService.changePassword(request, userEmail);
 
-    /*HttpHeaders headers = new HttpHeaders();
-    headers.add(
-        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getAccessCookie().toString());
-    headers.add(
-        HttpHeaders.SET_COOKIE, response.getCookieTokensResponse().getRefreshCookie().toString());*/
-
     log.info("Logout successful for user: {}", userEmail);
 
-    return ResponseEntity.ok().body(new SuccessResponse(response.getMessage()));
+    return ResponseEntity.ok().body(new SuccessResponse(response.getMessage(), response.getLink()));
   }
 
   @PatchMapping("/email")
+  @Operation(summary = "Change email")
   public ResponseEntity<?> changeEmail(
       @RequestParam("newEmail")
           @Email(message = "Invalid email format")
           @NotBlank(message = "Email cannot be empty")
           String newEmail,
       @RequestParam(required = false, name = "code")
-      @Pattern(
+          @Pattern(
               regexp = "^\\d{6}$",
               message = "One-time password must consist of exactly 6 digits")
-      String code) {
+          String code) {
     ChangeEmailResponse response = userService.changeEmail(newEmail, code);
     return ResponseEntity.ok(response);
   }
 
   @Operation(summary = "Request password reset")
   @PostMapping("/password/reset")
-  public ResponseEntity<?> initiatePasswordReset(@RequestBody @Valid PasswordResetRequest request) {
+  public ResponseEntity<?> initiatePasswordReset(
+      @RequestParam("newEmail")
+          @Email(message = "Invalid email format")
+          @NotBlank(message = "Email cannot be empty")
+          String email) {
 
-    log.info("Reset password attempt for user: {}", request.getEmail());
-    SuccessResponse response = authService.initiatePasswordReset(request);
-    log.info("Email with otp to reset password was sent to the email: {}", request.getEmail());
+    log.info("Reset password attempt for user: {}", email);
+    SuccessResponse response = authService.initiatePasswordReset(email);
+    log.info("Email with otp to reset password was sent to the email: {}", email);
 
     return ResponseEntity.ok().body(response);
   }
@@ -96,9 +94,6 @@ public class UserController {
     log.info("Reset password with otp attempt for email: {}", request.getEmail());
     SuccessResponse response = authService.resetPasswordWithOtp(request);
 
-    return ResponseEntity.ok().body(response.getMessage());
+    return ResponseEntity.ok().body(response);
   }
-
-  
-
 }

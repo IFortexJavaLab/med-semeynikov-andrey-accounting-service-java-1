@@ -13,7 +13,7 @@ import org.springframework.security.core.GrantedAuthority;
  * Service interface for managing JWT and refresh tokens.
  *
  * <p>Provides functionality for generating, validating, and refreshing access tokens, as well as
- * managing refresh tokens and their associated cookies.
+ * managing refresh tokens.
  */
 public interface TokenService {
 
@@ -30,11 +30,10 @@ public interface TokenService {
   /**
    * Refreshes the access and refresh tokens for a User.
    *
-   * <p>Validates the provided refresh token and generates new access and refresh tokens. Also
-   * creates HTTP cookies for storing the new tokens.
+   * <p>Validates the provided refresh token and generates new access and refresh tokens.
    *
    * @param refreshToken the refresh token to validate and refresh
-   * @return a {@link TokensResponse} containing the new tokens as cookies
+   * @return a {@link TokensResponse} containing the new tokens
    * @throws AuthorizationException if the refresh token is invalid or the associated user is not
    *     found
    */

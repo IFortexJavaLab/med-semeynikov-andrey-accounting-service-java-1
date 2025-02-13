@@ -1,29 +1,22 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
-import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
-import com.ifortex.internship.authservice.exception.custom.EmailSendException;
-import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
-import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
+import com.ifortex.internship.authservice.exception.custom.*;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
-
+import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
 import java.util.List;
 
 /**
  * Service interface for handling user login and authentication.
  *
- * <p>Provides methods to authenticate users, generate authentication tokens, and prepare cookies
- * for secure storage of access and refresh tokens.
+ * <p>Provides methods to authenticate users, generate authentication tokens.
  */
 public interface AuthService {
 
@@ -36,21 +29,22 @@ public interface AuthService {
    *
    * @param request the registration request containing user details like email, password, and
    *     password confirmation
-   * @return a {@link SuccessResponse} indicating successful registration with a message
    * @throws EmailAlreadyRegistered if the email is already registered in the system
    * @throws InvalidRequestException if the provided password and its confirmation do not match
    * @throws EntityNotFoundException if the default "non-subscribed user" role is not found in the
    *     database
    */
-  SuccessResponse registerUser(RegistrationRequest request);
+  void registerUser(RegistrationRequest request);
 
   /**
    * Creates a new user with the provided roles and email.
    *
-   * @param request the {@link CreateUserRequest} containing the email and list of roles to assign to the user.
+   * @param request the {@link CreateUserRequest} containing the email and list of roles to assign
+   *     to the user.
    * @return CreateUserResponse containing a success message and the generated temporary password.
    * @throws EmailAlreadyRegistered if the provided email is already registered in the system.
-   * @throws RegistrationFailedException if the user creation fails during the interaction with the User Management Service.
+   * @throws RegistrationFailedException if the user creation fails during the interaction with the
+   *     User Management Service.
    */
   CreateUserResponse createUser(CreateUserRequest request);
 
@@ -90,8 +84,7 @@ public interface AuthService {
   /**
    * Logs out the currently authenticated user.
    *
-   * @return an {@link AuthResponse} containing a success message, cleared authentication cookies,
-   *     and the user's email
+   * @return an {@link AuthResponse} containing a success message
    * @throws AuthorizationException if the user is not authenticated
    */
   AuthResponse logoutUser();
@@ -103,13 +96,13 @@ public interface AuthService {
    * user is found, a one-time password (OTP) is generated and saved with a defined expiration time.
    * An email is sent to the user containing the OTP and a link to reset their password.
    *
-   * @param passwordResetRequest the password reset request containing the user's email address.
+   * @param email the password reset request containing the user's email address.
    * @return a {@link SuccessResponse} containing a message confirming the initiation of the
    *     password reset process and instructions to complete it.
    * @throws EntityNotFoundException if no user is found with the provided email address.
    * @throws EmailSendException if an error occurs while sending the email with the OTP.
    */
-  SuccessResponse initiatePasswordReset(PasswordResetRequest passwordResetRequest);
+  SuccessResponse initiatePasswordReset(String email);
 
   /**
    * Resets the user's password using a one-time password (OTP) sent to their email.
@@ -169,4 +162,33 @@ public interface AuthService {
    */
   List<AuthUserDto> searchUsers(
       List<String> userIds, List<String> roles, String status, String email);
+
+  /**
+   * Resets the password for the user with the specified userId by generating a temporary password.
+   * The method performs validation to ensure that only super admins can reset passwords for super
+   * admins. Deletes any existing temporary passwords and deletes refresh tokens for the user.
+   *
+   * @param userId the ID of the user whose password is to be reset
+   * @return a response containing the newly generated temporary password
+   * @throws EntityNotFoundException if the user with the given ID is not found
+   * @throws SuperAdminModificationException if a non-super admin attempts to modify a super admin's
+   *     password
+   */
+  TemporaryPasswordResponse resetPasswordWithTemp(String userId);
+
+  /**
+   * Initiates a password reset request for a user by setting their current password to null and
+   * sending a password reset request email to the user's email address.
+   *
+   * <p>The user will receive an email with a link to reset their password. The email is generated
+   * using the provided template and sent through the email service. The user's password is set to
+   * null, and the associated refresh token is deleted.
+   *
+   * @param userId the ID of the user whose password is to be reset
+   * @return a {@link SuccessResponse} containing a message confirming that the password reset email
+   *     was sent
+   * @throws EntityNotFoundException if the user with the specified ID does not exist
+   * @throws EmailSendException if an error occurs while sending the password reset email
+   */
+  SuccessResponse resetPasswordWithEmail(String userId);
 }

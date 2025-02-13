@@ -10,7 +10,6 @@ import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.request.TwoFactorAuthRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
-
 import java.util.List;
 
 /**
@@ -24,20 +23,22 @@ public interface UserService {
   /**
    * Changes the password of a user.
    *
-   * <p>Verifies the current password provided by the user, ensures that the new password meets the
-   * necessary requirements, and updates the password if all validations pass.
+   * <p>This method authenticates the user's current password, checks that the new password is
+   * different from the current one, and ensures the new password matches the confirmation. If all
+   * checks pass, it updates the user's password and clears any temporary password. It also logs the
+   * user out and provides a link to the login page with a success message.
    *
    * @param request the request containing the current password, new password, and password
    *     confirmation
    * @param userEmail the email of the user whose password is to be changed
-   * @return an {@link AuthResponse} object containing the logout information and a message
-   *     indicating successful password change
+   * @return an {@link AuthResponse} object containing a success message, logout information, and a
+   *     login link
    * @throws AuthorizationException if the provided current password does not match the stored
    *     password
    * @throws InvalidRequestException if:
    *     <ul>
-   *       <li>The new password matches the current password.
-   *       <li>The new password does not match the password confirmation.
+   *       <li>The new password matches the current password
+   *       <li>The new password does not match the password confirmation
    *     </ul>
    */
   AuthResponse changePassword(ChangePasswordRequest request, String userEmail);

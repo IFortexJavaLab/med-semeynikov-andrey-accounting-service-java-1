@@ -1,20 +1,8 @@
 package com.ifortex.internship.authservice.model;
 
 import com.ifortex.internship.authservice.model.constant.UserStatus;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import com.ifortex.internship.authservice.stripe.model.Subscription;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,4 +63,9 @@ public class User {
 
   @OneToOne(mappedBy = "user", cascade = CascadeType.REMOVE, orphanRemoval = true)
   private RefreshToken refreshToken;
+
+  private String stripeCustomerId;
+
+  @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  private List<Subscription> subscriptions = new ArrayList<>();
 }

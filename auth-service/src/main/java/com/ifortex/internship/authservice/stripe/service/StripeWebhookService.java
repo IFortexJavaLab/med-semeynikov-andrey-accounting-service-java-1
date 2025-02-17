@@ -1,7 +1,6 @@
 package com.ifortex.internship.authservice.stripe.service;
 
 import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.repository.RoleRepository;
 import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.stripe.model.Subscription;
 import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Service;
 public class StripeWebhookService {
 
   private final UserRepository userRepository;
-  private final RoleRepository roleRepository;
   private final SubscriptionRepository subscriptionRepository;
 
   public void processCheckoutSessionCompleted(Session session) {

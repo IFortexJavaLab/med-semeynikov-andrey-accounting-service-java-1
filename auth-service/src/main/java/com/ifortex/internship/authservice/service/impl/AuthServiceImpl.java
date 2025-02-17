@@ -253,11 +253,6 @@ public class AuthServiceImpl implements AuthService {
                   return new AuthorizationException("Failed to verify otp. Please try again.");
                 });
 
-    List<String> roles =
-        user.getRoles().isEmpty()
-            ? List.of(UserRole.ROLE_NON_SUBSCRIBED_USER.name())
-            : user.getRoles().stream().map(role -> role.getName().name()).toList();
-
     return buildAuthResponse(user);
   }
 

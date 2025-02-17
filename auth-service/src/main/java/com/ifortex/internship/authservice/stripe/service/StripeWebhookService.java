@@ -1,9 +1,6 @@
 package com.ifortex.internship.authservice.stripe.service;
 
-import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
-import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.RoleRepository;
 import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.stripe.model.Subscription;
@@ -43,31 +40,10 @@ public class StripeWebhookService {
     }
     User user = userOpt.get();
 
-    boolean alreadyHasRole =
-        user.getRoles().stream()
-            .anyMatch(role -> UserRole.ROLE_SUBSCRIBED_USER.name().equals(role.getName().name()));
-    if (alreadyHasRole) {
-      log.debug("User with id {} already has BASIC_USER role.", user.getId());
-    } else {
-      Role role =
-          roleRepository
-              .findByName(UserRole.ROLE_SUBSCRIBED_USER)
-              .orElseThrow(
-                  () -> {
-                    log.debug("Role: {} not found", UserRole.ROLE_SUBSCRIBED_USER.name());
-                    return new EntityNotFoundException(
-                        String.format("Role: %s not found", UserRole.ROLE_SUBSCRIBED_USER.name()));
-                  });
-      user.getRoles().add(role);
-      userRepository.save(user);
-      log.info("Assigned ROLE_SUBSCRIBED_USER role to user with ID: {}", user.getId());
-    }
-
     // save subscription details to the db
 
     String stripeSubscriptionId = session.getSubscription();
-    boolean missingSubscriptionId =
-        (stripeSubscriptionId == null || stripeSubscriptionId.isEmpty());
+    boolean missingSubscriptionId = stripeSubscriptionId == null || stripeSubscriptionId.isEmpty();
     if (missingSubscriptionId) {
       log.warn("Session {} does not contain a subscription ID.", session.getId());
       return;
@@ -114,27 +90,26 @@ public class StripeWebhookService {
     Subscription localSubscription = subscriptionOpt.get();
     User user = localSubscription.getUser();
 
-    subscriptionRepository.delete(localSubscription);
+    LocalDateTime startDate =
+        LocalDateTime.ofEpochSecond(subscription.getCurrentPeriodStart(), 0, ZoneOffset.UTC);
+    LocalDateTime endDate =
+        LocalDateTime.ofEpochSecond(subscription.getCurrentPeriodEnd(), 0, ZoneOffset.UTC);
+
+    localSubscription.setStartDate(startDate);
+    localSubscription.setEndDate(endDate);
+    localSubscription.setStatus(SubscriptionStatus.CANCELED);
+
+    subscriptionRepository.save(localSubscription);
     log.info(
-        "Deleted subscription record with Stripe ID: {} for user with ID: {}",
+        "Updated subscription record with Stripe ID: {} for user with ID: {}",
         stripeSubscriptionId,
         user.getUserId());
-
-    boolean roleRemoved =
-        user.getRoles().removeIf(role -> UserRole.ROLE_SUBSCRIBED_USER.equals(role.getName()));
-    if (roleRemoved) {
-      userRepository.save(user);
-      log.info("Removed ROLE_SUBSCRIBED_USER from user with ID: {}", user.getUserId());
-    } else {
-      log.debug("User with id {} did not have ROLE_SUBSCRIBED_USER assigned.", user.getUserId());
-    }
   }
 
   public void processSubscriptionUpdated(com.stripe.model.Subscription subscriptionObj) {
     log.debug("Processing subscription update for session ID: {} ", subscriptionObj.getId());
 
     String stripeSubscriptionId = subscriptionObj.getId();
-    String stripePriceId = subscriptionObj.getItems().getData().getFirst().getPrice().getId();
     String customerId = subscriptionObj.getCustomer();
     String status = subscriptionObj.getStatus();
     LocalDateTime startDate =
@@ -155,7 +130,6 @@ public class StripeWebhookService {
 
     subscription.setUser(user);
     subscription.setStripeSubscriptionId(stripeSubscriptionId);
-    subscription.setStripePriceId(stripePriceId);
     subscription.setStartDate(startDate);
     subscription.setEndDate(endDate);
     subscription.setStatus(SubscriptionStatus.valueOf(status.toUpperCase()));

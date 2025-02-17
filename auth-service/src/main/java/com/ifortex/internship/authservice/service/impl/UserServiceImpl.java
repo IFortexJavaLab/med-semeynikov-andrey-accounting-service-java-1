@@ -76,6 +76,9 @@ public class UserServiceImpl implements UserService {
 
     User user = findUserByEmail(userEmail);
 
+    // todo вот тут будет выкидываться ошибка 401 когдя я захочу сменить пароль и введу текущий
+    // неверный. Но эта штука мне нужна чтобы не копировать authprovider который использует в том
+    // числе временные пароли
     authenticationProvider.authenticate(
         new UsernamePasswordAuthenticationToken(userEmail, request.getCurrentPassword()));
 
@@ -151,9 +154,9 @@ public class UserServiceImpl implements UserService {
       String changeEmailLink = environment.getProperty("app.link.changeEmail");
       String message =
           String.format(
-              "An email with a change email code has been sent to your email: %s, please follow this link: %s",
-              currentEmail, changeEmailLink);
-      return new ChangeEmailResponse(message);
+              "An email with a change email code has been sent to your email: %s, please follow this link:",
+              currentEmail);
+      return new ChangeEmailResponse(message, changeEmailLink);
     }
 
     String redisKey = RedisKeyPrefix.EMAIL_CHANGE.getPrefix() + currentEmail;
@@ -162,7 +165,7 @@ public class UserServiceImpl implements UserService {
     if (!code.equals(storedOtp)) {
       log.debug("OTP has expired or is invalid for email: {}", currentEmail);
       log.info("Failed to change email for user: {}", currentEmail);
-      throw new AuthorizationException("OTP has expired or is invalid. Please try again.");
+      throw new InvalidRequestException("OTP has expired or is invalid. Please try again.");
     }
 
     var user =
@@ -185,7 +188,7 @@ public class UserServiceImpl implements UserService {
         String.format(
             "Changed email successfully, please log in again using this link: %s", loginLink);
 
-    return new ChangeEmailResponse(authUserDto, message);
+    return new ChangeEmailResponse(authUserDto, message, loginLink);
   }
 
   @Transactional

@@ -9,7 +9,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.Optional;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +54,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     } catch (AuthServiceException e) {
       log.debug("Authentication service exception message: {}", e.getMessage());
-      response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+      response.sendError(
+          HttpServletResponse.SC_UNAUTHORIZED); // todo разделить на авторизацию и аутентификацию
       return;
     } catch (Exception e) {
       log.debug("Cannot set user authentication: {}", e.getMessage());
@@ -66,10 +69,19 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     String username = tokenService.getUsernameFromToken(jwt);
     String userId = tokenService.getUserIdFromToken(jwt);
+    Boolean hasActiveSubscription = tokenService.hasActiveSubscriptionFromToken(jwt);
+    Optional<LocalDateTime> subscriptionEndDate = tokenService.getSubscriptionEndDateFromToken(jwt);
     Collection<? extends GrantedAuthority> authorities = tokenService.getAuthorityFromToken(jwt);
 
     UserDetailsImpl userDetails =
-        UserDetailsImpl.builder().email(username).userId(userId).authorities(authorities).build();
+        UserDetailsImpl.builder()
+            .email(username)
+            .userId(userId)
+            .hasActiveSubscription(hasActiveSubscription)
+            .authorities(authorities)
+            .build();
+
+    subscriptionEndDate.ifPresent(userDetails::setSubscriptionEndDate);
 
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);

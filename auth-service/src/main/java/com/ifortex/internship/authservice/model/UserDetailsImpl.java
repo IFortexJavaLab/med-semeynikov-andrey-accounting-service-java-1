@@ -1,6 +1,7 @@
 package com.ifortex.internship.authservice.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,6 +18,9 @@ public class UserDetailsImpl implements UserDetails {
   private String email;
   @JsonIgnore private String password;
   private boolean isTwoFactorEnabled;
+  private boolean hasActiveSubscription;
+  private LocalDateTime subscriptionEndDate;
+
   private Collection<? extends GrantedAuthority> authorities;
 
   @Override

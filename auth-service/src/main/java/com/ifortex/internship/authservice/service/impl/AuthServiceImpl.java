@@ -178,7 +178,7 @@ public class AuthServiceImpl implements AuthService {
     log.info("User: {} created successfully", request.getEmail());
 
     String message = String.format("User: %s created successfully", request.getEmail());
-    return new CreateUserResponse(message, password);
+    return new CreateUserResponse(message, password, tempPasswordExpirationHours);
   }
 
   public AuthResponse authenticateUser(LoginRequest loginRequest) {
@@ -218,16 +218,12 @@ public class AuthServiceImpl implements AuthService {
       String message =
           String.format(
               "Two-factor authentication is required to complete your login. A verification code has been sent "
-                  + "to your email: %s. Please enter the code along with your email at the following link: %s",
-              userEmail, verifyOtpLink);
-      // todo refactor message
-      return AuthResponse.builder().message(message).build();
+                  + "to your email: %s. Please enter the code along with your email at the following link: ",
+              userEmail);
+      return AuthResponse.builder().message(message).link(verifyOtpLink).build();
     }
 
-    List<String> roles =
-        user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
-
-    return buildAuthResponse(userEmail, roles, user.getUserId());
+    return buildAuthResponse(user);
   }
 
   @Transactional
@@ -243,7 +239,7 @@ public class AuthServiceImpl implements AuthService {
     if (!otpFromRequest.equals(storedOtp)) {
       log.debug("OTP has expired or is invalid for email: {}", userEmail);
       log.info("Failed to login for user: {}", userEmail);
-      throw new AuthorizationException("OTP has expired or is invalid. Please try again.");
+      throw new InvalidRequestException("OTP has expired or is invalid. Please try again.");
     }
 
     redisService.deleteOtp(redisKey);
@@ -262,7 +258,7 @@ public class AuthServiceImpl implements AuthService {
             ? List.of(UserRole.ROLE_NON_SUBSCRIBED_USER.name())
             : user.getRoles().stream().map(role -> role.getName().name()).toList();
 
-    return buildAuthResponse(userEmail, roles, user.getUserId());
+    return buildAuthResponse(user);
   }
 
   @Transactional
@@ -542,19 +538,27 @@ public class AuthServiceImpl implements AuthService {
    * <p>This method generates a new access token and refresh token for the user and packages them
    * into an AuthResponse.
    *
-   * @param userEmail the email of the authenticated user
-   * @param roles the roles assigned to the user
+   * @param user the user entity
    * @return an AuthResponse containing access and refresh token
    */
-  private AuthResponse buildAuthResponse(String userEmail, List<String> roles, String userId) {
+  private AuthResponse buildAuthResponse(User user) {
 
-    String newAccessToken = tokenService.generateAccessToken(userEmail, roles, userId);
-    log.debug("Access token generated successfully for user: {}", userEmail);
+    String newAccessToken = tokenService.generateAccessToken(user);
+    log.debug("Access token generated successfully for user: {}", user.getEmail());
 
-    RefreshToken newRefreshToken = tokenService.createRefreshToken(userEmail);
+    RefreshToken newRefreshToken = tokenService.createRefreshToken(user.getEmail());
+
+    Integer jwtExpirationMs = Integer.valueOf(environment.getProperty("app.jwtExpirationMs"));
+    Integer refreshTokenExpirationS =
+        Integer.valueOf(environment.getProperty("app.refreshTokenExpirationS"));
 
     return AuthResponse.builder()
-        .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken()))
+        .tokens(
+            new TokensResponse(
+                newAccessToken,
+                newRefreshToken.getToken(),
+                jwtExpirationMs,
+                refreshTokenExpirationS))
         .build();
   }
 

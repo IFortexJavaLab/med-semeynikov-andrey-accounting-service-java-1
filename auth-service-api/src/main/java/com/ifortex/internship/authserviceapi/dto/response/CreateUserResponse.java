@@ -12,4 +12,5 @@ import lombok.Setter;
 public class CreateUserResponse {
   private String message;
   private String tempPassword;
+  private Integer passwordExpirationH;
 }

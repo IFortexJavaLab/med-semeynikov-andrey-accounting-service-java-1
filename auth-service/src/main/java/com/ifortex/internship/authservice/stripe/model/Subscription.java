@@ -21,9 +21,6 @@ public class Subscription {
   @Column(name = "stripe_subscription_id", nullable = false, unique = true)
   private String stripeSubscriptionId;
 
-  @Column(name = "stripe_price_id")
-  private String stripePriceId;
-
   @Enumerated(EnumType.STRING)
   private SubscriptionStatus status;
 

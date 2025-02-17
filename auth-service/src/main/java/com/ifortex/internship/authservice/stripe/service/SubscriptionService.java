@@ -118,9 +118,9 @@ public class SubscriptionService {
       throw new ActiveSubscriptionExistsException("You already have active subscription");
     }
 
-    boolean missingStripeCustomerId =
+    boolean isNotStripeCustomer =
         user.getStripeCustomerId() == null || user.getStripeCustomerId().isEmpty();
-    if (missingStripeCustomerId) {
+    if (isNotStripeCustomer) {
       CustomerCreateParams customerParams =
           CustomerCreateParams.builder().setEmail(userEmail).build();
       Customer customer;
@@ -207,30 +207,12 @@ public class SubscriptionService {
 
       SubscriptionCancelParams params = SubscriptionCancelParams.builder().build();
 
-      com.stripe.model.Subscription stripeSubscription = resource.cancel(params);
+      resource.cancel(params);
       log.info("Stripe subscription {} cancelled successfully.", stripeSubscriptionId);
     } catch (StripeException e) {
       log.error(
           "Error cancelling Stripe subscription: {}. Code: {}", e.getMessage(), e.getCode(), e);
       throw new StripeServiceException("Failed to cancel subscription");
     }
-
-    // todo ask the question about deleting and cancelling subscription locally
-    /*// Update the local subscription record status to "CANCELED"
-    subscription.setStatus(
-        SubscriptionStatus
-            .CANCELED);
-    subscriptionRepository.save(subscription);
-    log.debug("Local subscription record {} updated to CANCELED.", stripeSubscriptionId);*/
-
-    /*// Remove the subscriber role from the user
-    boolean roleRemoved =
-        user.getRoles().removeIf(role -> UserRole.ROLE_SUBSCRIBED_USER.equals(role.getName()));
-    if (roleRemoved) {
-      userRepository.save(user);
-      log.info("Removed subscriber role from user with id: {}", user.getId());
-    } else {
-      log.warn("User with id {} did not have subscriber role assigned.", user.getId());
-    }*/
   }
 }

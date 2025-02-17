@@ -2,11 +2,7 @@ package com.ifortex.internship.authservice.service;
 
 import com.ifortex.internship.authservice.exception.custom.*;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
-import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
-import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
-import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authserviceapi.dto.request.*;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
@@ -25,7 +21,7 @@ public interface AuthService {
    *
    * <p>This method validates the registration request, including email uniqueness and password
    * confirmation. If valid, it hashes the user's password, assigns the default "non-subscribed
-   * user" role, and saves the user in the database.
+   * user" role, creates stripe user id and saves the user in the database.
    *
    * @param request the registration request containing user details like email, password, and
    *     password confirmation
@@ -37,14 +33,10 @@ public interface AuthService {
   void registerUser(RegistrationRequest request);
 
   /**
-   * Creates a new user with the provided roles and email.
+   * Creates a new user with the default user role.
    *
-   * @param request the {@link CreateUserRequest} containing the email and list of roles to assign
-   *     to the user.
-   * @return CreateUserResponse containing a success message and the generated temporary password.
-   * @throws EmailAlreadyRegistered if the provided email is already registered in the system.
-   * @throws RegistrationFailedException if the user creation fails during the interaction with the
-   *     User Management Service.
+   * @param request the request containing the email of the user to be created
+   * @return a response containing a success message, temporary password, and its expiration time
    */
   CreateUserResponse createUser(CreateUserRequest request);
 
@@ -191,4 +183,14 @@ public interface AuthService {
    * @throws EmailSendException if an error occurs while sending the password reset email
    */
   SuccessResponse resetPasswordWithEmail(String userId);
+
+  /**
+   * Creates a new admin user with either an admin or super admin role. Only a super admin can
+   * create another super admin.
+   *
+   * @param request the request containing the email and admin role type
+   * @return a response containing a success message, temporary password, and its expiration time
+   * @throws RegistrationFailedException if a non-super admin attempts to create a super admin
+   */
+  CreateUserResponse createAdmin(CreateAdminRequest request);
 }

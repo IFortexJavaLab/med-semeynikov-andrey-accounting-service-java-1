@@ -2,7 +2,7 @@ package com.ifortex.internship.authservice.stripe.controller;
 
 import com.ifortex.internship.authservice.stripe.dto.request.PurchaseSubscriptionRequest;
 import com.ifortex.internship.authservice.stripe.dto.response.PurchaseSubscriptionResponse;
-import com.ifortex.internship.authservice.stripe.service.SubscriptionService;
+import com.ifortex.internship.authservice.stripe.service.StripeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class SubscriptionController {
 
-  private final SubscriptionService subscriptionService;
+  private final StripeService stripeService;
 
   @GetMapping("/plans")
   public ResponseEntity<?> getAvailableSubscriptions() {
-    var subscriptions = subscriptionService.getAvailablePlans();
+    var subscriptions = stripeService.getAvailablePlans();
     return ResponseEntity.ok(subscriptions);
   }
 
@@ -25,13 +25,13 @@ public class SubscriptionController {
   public ResponseEntity<PurchaseSubscriptionResponse> subscribe(
       @RequestBody PurchaseSubscriptionRequest request) {
     PurchaseSubscriptionResponse response =
-        subscriptionService.createSubscriptionCheckoutSession(request);
+        stripeService.createSubscriptionCheckoutSession(request);
     return ResponseEntity.ok(response);
   }
 
   @PostMapping("/cancel")
   public ResponseEntity<?> cancel() {
-    subscriptionService.cancelSubscriptionForUser();
+    stripeService.cancelSubscriptionForUser();
     return ResponseEntity.status(HttpStatus.OK).build();
   }
 }

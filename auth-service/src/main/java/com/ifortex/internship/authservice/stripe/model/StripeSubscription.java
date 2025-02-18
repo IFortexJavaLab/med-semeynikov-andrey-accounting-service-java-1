@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Subscription {
+public class StripeSubscription {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

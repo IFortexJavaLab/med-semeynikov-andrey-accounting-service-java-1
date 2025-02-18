@@ -2,10 +2,10 @@ package com.ifortex.internship.authservice.stripe.service;
 
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.repository.UserRepository;
-import com.ifortex.internship.authservice.stripe.model.Subscription;
+import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
 import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
 import com.ifortex.internship.authservice.stripe.repository.SubscriptionRepository;
-import com.stripe.model.checkout.Session;
+import com.stripe.model.Invoice;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -21,13 +21,13 @@ public class StripeWebhookService {
   private final UserRepository userRepository;
   private final SubscriptionRepository subscriptionRepository;
 
-  public void processCheckoutSessionCompleted(Session session) {
+  public void processInvoicePaymentSucceeded(Invoice invoice) {
 
-    log.debug("Processing checkout session completed for session id: {} ", session.getId());
+    log.debug("Processing invoice payment succeeded for invoice id: {} ", invoice.getId());
 
-    String stripeCustomerId = session.getCustomer();
+    String stripeCustomerId = invoice.getCustomer();
     if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
-      log.warn("Stripe session does not contain a customer ID.");
+      log.warn("Stripe invoice does not contain a customer ID.");
       return;
     }
 
@@ -40,10 +40,10 @@ public class StripeWebhookService {
 
     // save subscription details to the db
 
-    String stripeSubscriptionId = session.getSubscription();
+    String stripeSubscriptionId = invoice.getSubscription();
     boolean missingSubscriptionId = stripeSubscriptionId == null || stripeSubscriptionId.isEmpty();
     if (missingSubscriptionId) {
-      log.warn("Session {} does not contain a subscription ID.", session.getId());
+      log.warn("Session {} does not contain a subscription ID.", invoice.getId());
       return;
     }
 
@@ -52,12 +52,11 @@ public class StripeWebhookService {
     if (subscriptionAlreadyExists) {
       log.debug("Subscription record for subscription id {} already exists.", stripeSubscriptionId);
     } else {
-      com.ifortex.internship.authservice.stripe.model.Subscription subscription =
-          new Subscription();
-      subscription.setStripeSubscriptionId(stripeSubscriptionId);
-      subscription.setUser(user);
+      StripeSubscription stripeSubscription = new StripeSubscription();
+      stripeSubscription.setStripeSubscriptionId(stripeSubscriptionId);
+      stripeSubscription.setUser(user);
 
-      subscriptionRepository.save(subscription);
+      subscriptionRepository.save(stripeSubscription);
       log.info(
           "Created new subscription record for user id: {} with subscription id: {}",
           user.getId(),
@@ -76,7 +75,7 @@ public class StripeWebhookService {
       return;
     }
 
-    Optional<Subscription> subscriptionOpt =
+    Optional<StripeSubscription> subscriptionOpt =
         subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId);
     if (subscriptionOpt.isEmpty()) {
       log.warn(
@@ -85,7 +84,7 @@ public class StripeWebhookService {
       return;
     }
 
-    Subscription localSubscription = subscriptionOpt.get();
+    StripeSubscription localSubscription = subscriptionOpt.get();
     User user = localSubscription.getUser();
 
     LocalDateTime startDate =
@@ -121,18 +120,18 @@ public class StripeWebhookService {
       return;
     }
     User user = userOpt.get();
-    Subscription subscription =
+    StripeSubscription stripeSubscription =
         subscriptionRepository
             .findByStripeSubscriptionId(stripeSubscriptionId)
-            .orElse(new Subscription());
+            .orElse(new StripeSubscription());
 
-    subscription.setUser(user);
-    subscription.setStripeSubscriptionId(stripeSubscriptionId);
-    subscription.setStartDate(startDate);
-    subscription.setEndDate(endDate);
-    subscription.setStatus(SubscriptionStatus.valueOf(status.toUpperCase()));
+    stripeSubscription.setUser(user);
+    stripeSubscription.setStripeSubscriptionId(stripeSubscriptionId);
+    stripeSubscription.setStartDate(startDate);
+    stripeSubscription.setEndDate(endDate);
+    stripeSubscription.setStatus(SubscriptionStatus.valueOf(status.toUpperCase()));
 
-    subscriptionRepository.save(subscription);
+    subscriptionRepository.save(stripeSubscription);
 
     log.info(
         "Subscription:{} updated for user with ID: {}", stripeSubscriptionId, user.getUserId());

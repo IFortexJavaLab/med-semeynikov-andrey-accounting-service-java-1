@@ -1,7 +1,7 @@
 package com.ifortex.internship.authservice.model;
 
 import com.ifortex.internship.authservice.model.constant.UserStatus;
-import com.ifortex.internship.authservice.stripe.model.Subscription;
+import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -67,5 +67,5 @@ public class User {
   private String stripeCustomerId;
 
   @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-  private List<Subscription> subscriptions = new ArrayList<>();
+  private List<StripeSubscription> stripeSubscriptions = new ArrayList<>();
 }

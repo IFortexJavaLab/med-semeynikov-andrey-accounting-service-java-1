@@ -6,7 +6,7 @@ import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.service.RefreshTokenService;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authservice.stripe.model.Subscription;
+import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
 import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
 import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import io.jsonwebtoken.Claims;
@@ -53,8 +53,8 @@ public class TokenServiceImpl implements TokenService {
 
   public String generateAccessToken(User user) {
 
-    Subscription activeSubscription =
-        user.getSubscriptions().stream()
+    StripeSubscription activeSubscription =
+        user.getStripeSubscriptions().stream()
             .filter(subscr -> subscr.getStatus().equals(SubscriptionStatus.ACTIVE))
             .findFirst()
             .orElse(null);

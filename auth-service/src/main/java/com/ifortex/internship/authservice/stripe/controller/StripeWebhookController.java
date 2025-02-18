@@ -3,7 +3,6 @@ package com.ifortex.internship.authservice.stripe.controller;
 import com.ifortex.internship.authservice.stripe.service.StripeWebhookService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.*;
-import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -38,12 +37,12 @@ public class StripeWebhookController {
     }
 
     switch (event.getType()) {
-      case "checkout.session.completed":
-        Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
-        if (session != null) {
-          stripeWebhookService.processCheckoutSessionCompleted(session);
+      case "invoice.payment_succeeded":
+        Invoice invoice = (Invoice) event.getDataObjectDeserializer().getObject().orElse(null);
+        if (invoice != null) {
+          stripeWebhookService.processInvoicePaymentSucceeded(invoice);
         } else {
-          log.warn("Unable to deserialize Stripe session object from event.");
+          log.warn("Unable to deserialize Stripe invoice object from event.");
         }
         break;
 
@@ -53,7 +52,7 @@ public class StripeWebhookController {
         if (subscription != null) {
           stripeWebhookService.processSubscriptionCancellation(subscription);
         } else {
-          log.warn("Unable to deserialize Stripe session object from event.");
+          log.warn("Unable to deserialize Stripe invoice object from event.");
         }
         break;
 

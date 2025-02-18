@@ -10,7 +10,7 @@ import com.ifortex.internship.authservice.stripe.dto.response.PurchaseSubscripti
 import com.ifortex.internship.authservice.stripe.exception.ActiveSubscriptionExistsException;
 import com.ifortex.internship.authservice.stripe.exception.ActiveSubscriptionNotFoundException;
 import com.ifortex.internship.authservice.stripe.exception.StripeServiceException;
-import com.ifortex.internship.authservice.stripe.model.Subscription;
+import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
 import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
 import com.ifortex.internship.authservice.stripe.repository.SubscriptionRepository;
 import com.stripe.Stripe;
@@ -22,6 +22,7 @@ import com.stripe.model.checkout.Session;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.PriceListParams;
 import com.stripe.param.SubscriptionCancelParams;
+import com.stripe.param.SubscriptionListParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import jakarta.annotation.PostConstruct;
 import java.util.*;
@@ -33,7 +34,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SubscriptionService {
+public class StripeService {
 
   private final UserRepository userRepository;
   private final AuthService authService;
@@ -90,6 +91,33 @@ public class SubscriptionService {
     return planList;
   }
 
+  public List<com.stripe.model.Subscription> fetchAllSubscriptionsFromStripe()
+      throws StripeException {
+
+    log.debug("Fetching all subscriptions from Stripe");
+    List<com.stripe.model.Subscription> allSubscriptions = new ArrayList<>();
+    String lastSubscriptionId = null;
+
+    do {
+      SubscriptionListParams.Builder params =
+          SubscriptionListParams.builder()
+              .setLimit(100L)
+              .setStatus(SubscriptionListParams.Status.ALL);
+      if (lastSubscriptionId != null) {
+        params.setStartingAfter(lastSubscriptionId);
+      }
+      List<com.stripe.model.Subscription> subscriptions =
+          com.stripe.model.Subscription.list(params.build()).getData();
+      if (subscriptions.isEmpty()) break;
+
+      allSubscriptions.addAll(subscriptions);
+      lastSubscriptionId = subscriptions.getLast().getId();
+    } while (lastSubscriptionId != null);
+
+    log.debug("Fetched all subscriptions from Stripe");
+    return allSubscriptions;
+  }
+
   public PurchaseSubscriptionResponse createSubscriptionCheckoutSession(
       PurchaseSubscriptionRequest request) {
 
@@ -106,12 +134,11 @@ public class SubscriptionService {
                 });
 
     boolean hasActiveSubscription =
-        user.getSubscriptions() != null
-            && user.getSubscriptions().stream()
+        user.getStripeSubscriptions() != null
+            && user.getStripeSubscriptions().stream()
                 .anyMatch(subscription -> subscription.getStatus() == SubscriptionStatus.ACTIVE);
 
     if (hasActiveSubscription) {
-      // todo refactor
       log.debug(
           "User with ID: {} attempt to purchase another subscription while an active subscription already exists.",
           user.getUserId());
@@ -188,18 +215,20 @@ public class SubscriptionService {
         userRepository
             .findByEmail(userEmail)
             .orElseThrow(
-                () -> // todo add log debug
-                new EntityNotFoundException(
-                        String.format("User with email %s not found", userEmail)));
+                () -> {
+                  log.debug("User with email: {} not found not found", userEmail);
+                  return new EntityNotFoundException(
+                      String.format("User with email %s not found", userEmail));
+                });
 
-    Optional<Subscription> subscriptionOpt =
+    Optional<StripeSubscription> subscriptionOpt =
         subscriptionRepository.findActiveSubscriptionByUserId(user.getId());
     if (subscriptionOpt.isEmpty()) {
       log.debug("No active subscription found for user with ID: {}", user.getUserId());
       throw new ActiveSubscriptionNotFoundException("You have no active subscriptions");
     }
-    Subscription subscription = subscriptionOpt.get();
-    String stripeSubscriptionId = subscription.getStripeSubscriptionId();
+    StripeSubscription stripeSubscription = subscriptionOpt.get();
+    String stripeSubscriptionId = stripeSubscription.getStripeSubscriptionId();
 
     try {
       com.stripe.model.Subscription resource =

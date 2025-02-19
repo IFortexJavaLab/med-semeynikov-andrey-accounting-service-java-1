@@ -4,6 +4,8 @@ import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.UserRepository;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -11,9 +13,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +32,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     List<GrantedAuthority> authorities =
         user.getRoles().isEmpty()
-            ? List.of(new SimpleGrantedAuthority(UserRole.ROLE_NON_SUBSCRIBED_USER.name()))
+            ? List.of(new SimpleGrantedAuthority(UserRole.ROLE_USER.name()))
             : user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName().name()))
                 .collect(Collectors.toList());

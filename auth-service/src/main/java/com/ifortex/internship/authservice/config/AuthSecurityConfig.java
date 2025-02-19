@@ -52,7 +52,18 @@ public class AuthSecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/v1/auth-service/users/**")
                     .authenticated()
+                    /*.requestMatchers("/api/v1/accounting/**")
+                    .hasAnyRole("ADMIN", "SUPER_ADMIN")*/
+                    // todo what types of errors should be thrown?
+                    .requestMatchers("/api/v1/subscription/plans")
+                    .permitAll()
+                    .requestMatchers("/api/v1/subscription/webhooks")
+                    .permitAll()
+                    .requestMatchers("/api/v1/subscription/**")
+                    .authenticated()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs*/**")
+                    .permitAll()
+                    .requestMatchers("/success.html", "/cancel.html")
                     .permitAll()
                     .anyRequest()
                     .authenticated())

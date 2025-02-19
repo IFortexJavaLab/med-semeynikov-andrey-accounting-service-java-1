@@ -4,9 +4,10 @@ import com.ifortex.internship.authservice.exception.AuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.service.RefreshTokenService;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
+import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
 import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -18,10 +19,11 @@ import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.crypto.SecretKey;
 import lombok.extern.slf4j.Slf4j;
@@ -40,18 +42,43 @@ public class TokenServiceImpl implements TokenService {
   @Value("${app.jwtExpirationMs}")
   private int jwtExpirationMs;
 
+  @Value("${app.refreshTokenExpirationS}")
+  private int refreshTokenExpirationS;
+
   private final RefreshTokenService refreshTokenService;
 
   public TokenServiceImpl(RefreshTokenService refreshTokenService) {
     this.refreshTokenService = refreshTokenService;
   }
 
-  public String generateAccessToken(String email, List<String> roles, String userId) {
+  public String generateAccessToken(User user) {
 
+    StripeSubscription activeSubscription =
+        user.getStripeSubscriptions().stream()
+            .filter(subscr -> subscr.getStatus().equals(SubscriptionStatus.ACTIVE))
+            .findFirst()
+            .orElse(null);
+
+    Map<String, Object> claims = new HashMap<>();
+    claims.put("hasActiveSubscription", false);
+
+    if (activeSubscription != null) {
+      boolean isSubscriptionValid =
+          activeSubscription.getEndDate().isAfter(LocalDateTime.now(Clock.systemUTC()));
+      if (isSubscriptionValid) {
+        claims.put("hasActiveSubscription", true);
+        long expirationDate = activeSubscription.getEndDate().toEpochSecond(ZoneOffset.UTC);
+        claims.put("subscriptionEndDate", expirationDate);
+      }
+    }
+
+    List<String> roles =
+        user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
+    claims.put("roles", roles);
+    claims.put("userId", user.getUserId());
     return Jwts.builder()
-        .subject(email)
-        .claim("roles", roles)
-        .claim("userId", userId)
+        .subject(user.getEmail())
+        .claims(claims)
         .issuedAt(new Date(System.currentTimeMillis()))
         .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
         .signWith(getSigningKey())
@@ -67,18 +94,14 @@ public class TokenServiceImpl implements TokenService {
 
       User user = storedRefreshtoken.getUser();
 
-      List<String> roles =
-          user.getRoles().isEmpty()
-              ? List.of(UserRole.ROLE_NON_SUBSCRIBED_USER.name())
-              : user.getRoles().stream().map(role -> role.getName().name()).toList();
-
-      String newAccessToken = generateAccessToken(user.getEmail(), roles, user.getUserId());
+      String newAccessToken = generateAccessToken(user);
       log.debug("Access token refreshed successfully for user: {}", user.getEmail());
 
       RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
-      
-      return new TokensResponse(newAccessToken, newRefreshToken.getToken());
-      
+
+      return new TokensResponse(
+          newAccessToken, newRefreshToken.getToken(), jwtExpirationMs, refreshTokenExpirationS);
+
     } catch (AuthServiceException e) {
       log.debug("Exception message: {}", e.getMessage());
       throw new AuthorizationException("Your session has expired. Please log in again.");
@@ -148,6 +171,27 @@ public class TokenServiceImpl implements TokenService {
         .parseSignedClaims(token)
         .getPayload()
         .get("userId", String.class);
+  }
+
+  public Boolean hasActiveSubscriptionFromToken(String token) {
+    return Jwts.parser()
+        .verifyWith(getSigningKey())
+        .build()
+        .parseSignedClaims(token)
+        .getPayload()
+        .get("hasActiveSubscription", Boolean.class);
+  }
+
+  public Optional<LocalDateTime> getSubscriptionEndDateFromToken(String token) {
+    Long subscriptionEndDate =
+        Jwts.parser()
+            .verifyWith(getSigningKey())
+            .build()
+            .parseSignedClaims(token)
+            .getPayload()
+            .get("subscriptionEndDate", Long.class);
+    return Optional.ofNullable(subscriptionEndDate)
+        .map(date -> LocalDateTime.ofEpochSecond(date, 0, ZoneOffset.UTC));
   }
 
   public Collection<? extends GrantedAuthority> getAuthorityFromToken(String token) {

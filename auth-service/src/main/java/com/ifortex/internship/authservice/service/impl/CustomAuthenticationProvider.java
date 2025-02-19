@@ -92,7 +92,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
   private Authentication createAuthenticationToken(User user, String password) {
     List<GrantedAuthority> authorities =
         user.getRoles().isEmpty()
-            ? List.of(new SimpleGrantedAuthority(UserRole.ROLE_NON_SUBSCRIBED_USER.name()))
+            ? List.of(new SimpleGrantedAuthority(UserRole.ROLE_USER.name()))
             : user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName().name()))
                 .collect(Collectors.toList());

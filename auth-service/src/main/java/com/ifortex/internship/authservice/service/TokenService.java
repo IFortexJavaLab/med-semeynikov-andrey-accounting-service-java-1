@@ -5,8 +5,9 @@ import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.List;
+import java.util.Optional;
 import org.springframework.security.core.GrantedAuthority;
 
 /**
@@ -18,14 +19,12 @@ import org.springframework.security.core.GrantedAuthority;
 public interface TokenService {
 
   /**
-   * Generates a JWT access token for a {@link User} based on their email and roles.
+   * Generates a JWT access token for a {@link User} based on their user entity.
    *
-   * @param email the email of the User
-   * @param roles the list of roles assigned to the User
-   * @param userId the uuid of the User
+   * @param user the User entity
    * @return the generated JWT access token as a String
    */
-  String generateAccessToken(String email, List<String> roles, String userId);
+  String generateAccessToken(User user);
 
   /**
    * Refreshes the access and refresh tokens for a User.
@@ -78,6 +77,23 @@ public interface TokenService {
    * @return the userId (uuid) extracted from the token
    */
   String getUserIdFromToken(String token);
+
+  /**
+   * Extracts the hasActiveSubscription from the provided JWT access token.
+   *
+   * @param token the JWT token
+   * @return the boolean hasActiveSubscription extracted from the token
+   */
+  Boolean hasActiveSubscriptionFromToken(String token);
+
+  /**
+   * Extracts the subscriptionEndDate from the provided JWT access token.
+   *
+   * @param token the JWT token
+   * @return the Optional<LocalDateTime></LocalDateTime> hasActiveSubscription extracted from the
+   *     token
+   */
+  Optional<LocalDateTime> getSubscriptionEndDateFromToken(String token);
 
   /**
    * Extracts user roles from a JWT token and converts them to granted authorities.

@@ -1,8 +1,19 @@
 package com.ifortex.internship.authservice.service.impl;
 
 import com.ifortex.internship.authservice.email.EmailService;
-import com.ifortex.internship.authservice.exception.custom.*;
-import com.ifortex.internship.authservice.model.*;
+import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
+import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
+import com.ifortex.internship.authservice.exception.custom.EmailSendException;
+import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
+import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
+import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
+import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
+import com.ifortex.internship.authservice.model.RefreshToken;
+import com.ifortex.internship.authservice.model.Role;
+import com.ifortex.internship.authservice.model.TemporaryPassword;
+import com.ifortex.internship.authservice.model.User;
+import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
@@ -14,8 +25,17 @@ import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.TokenService;
 import com.ifortex.internship.authservice.stripe.exception.StripeServiceException;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
-import com.ifortex.internship.authserviceapi.dto.request.*;
-import com.ifortex.internship.authserviceapi.dto.response.*;
+import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
+import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
+import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
+import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
+import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
+import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
+import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
+import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import com.ifortex.internship.usermanagementapi.UserManagementApi;
 import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
 import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
@@ -180,7 +200,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     log.info("User: {} created successfully", email);
-    return createUserResponse(user, password);
+
+    String message = String.format("User: %s created successfully", user.getEmail());
+    return new CreateUserResponse(message, password, tempPasswordExpirationHours);
   }
 
   /**
@@ -232,11 +254,6 @@ public class AuthServiceImpl implements AuthService {
     }
   }
 
-  private CreateUserResponse createUserResponse(User user, String password) {
-    String message = String.format("User: %s created successfully", user.getEmail());
-    return new CreateUserResponse(message, password, tempPasswordExpirationHours);
-  }
-
   public AuthResponse authenticateUser(LoginRequest loginRequest) {
 
     String userEmail = loginRequest.getEmail();
@@ -247,8 +264,17 @@ public class AuthServiceImpl implements AuthService {
             new UsernamePasswordAuthenticationToken(userEmail, loginRequest.getPassword()));
 
     SecurityContextHolder.getContext().setAuthentication(authentication);
-    log.debug("User: {} successfully authenticated.", userEmail);
     User user = (User) authentication.getPrincipal();
+
+    boolean isBlocked =
+        user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now());
+    if (isBlocked) {
+      log.debug("User with ID: {} is blocked", user.getUserId());
+      throw new UserBlockedException(
+          String.format("Your account is blocked due to: %s", user.getBlockedUntil()));
+    }
+
+    log.debug("User: {} successfully authenticated.", userEmail);
 
     if (user.isTwoFactorEnabled()) {
       log.debug("User: {} has 2FA enabled. Sending OTP", userEmail);
@@ -555,8 +581,8 @@ public class AuthServiceImpl implements AuthService {
    *
    * @param user the user to be modified
    * @param isCurrentUserSuperAdmin whether the current user is a super admin
-   * @throws SuperAdminModificationException if the current user is not a super admin and tries to
-   *     modify a super admin
+   * @throws ForbiddenActionException if the current user is not a super admin and tries to modify a
+   *     super admin
    */
   private void checkSuperAdminModification(User user, boolean isCurrentUserSuperAdmin) {
     boolean isEditedUserSuperAdmin =
@@ -564,7 +590,7 @@ public class AuthServiceImpl implements AuthService {
 
     if (isEditedUserSuperAdmin && !isCurrentUserSuperAdmin) {
       log.debug("Attempt to reset password for ROLE_SUPER_ADMIN with ROLE_ADMIN");
-      throw new SuperAdminModificationException("Access denied");
+      throw new ForbiddenActionException("You can't edit user with ROLE_SUPER_ADMIN");
     }
   }
 
@@ -629,16 +655,24 @@ public class AuthServiceImpl implements AuthService {
   }
 
   /**
-   * Creates a predicate to filter users by their status.
+   * Creates a predicate to filter users by their blocked status.
    *
-   * <p>If the {@code status} parameter is null, no filtering is applied. Otherwise, the predicate
-   * checks if the user's status matches the provided status (case-insensitive).
+   * <p>If the {@code status} parameter is null, no filtering is applied. Otherwise: - "ACTIVE"
+   * returns users who are not currently blocked. - "BLOCKED" returns users who are currently
+   * blocked.
    *
-   * @param status User status to filter by (e.g., "ACTIVE", "BLOCKED"). Can be null.
-   * @return A {@link Predicate} that filters users based on their status.
+   * @param status Status to filter by ("ACTIVE" or "BLOCKED"). Can be null.
+   * @return A {@link Predicate} that filters users based on their blocked status.
    */
   private Predicate<User> filterByStatus(String status) {
-    return user -> status == null || user.getStatus().name().equalsIgnoreCase(status);
+    return user -> {
+      if (status == null) {
+        return true;
+      }
+      boolean isBlocked =
+          user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now());
+      return status.equalsIgnoreCase("BLOCKED") == isBlocked;
+    };
   }
 
   /**
@@ -675,8 +709,7 @@ public class AuthServiceImpl implements AuthService {
         .setEmail(user.getEmail())
         .setTwoFactorEnabled(user.isTwoFactorEnabled())
         .setSoftDeleted(user.isSoftDeleted())
-        .setRoles(roleNames)
-        .setStatus(user.getStatus().name());
+        .setRoles(roleNames);
   }
 
   /**

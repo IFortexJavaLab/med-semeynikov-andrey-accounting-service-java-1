@@ -3,11 +3,14 @@ package com.ifortex.internship.authservice.service;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
+import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
+import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.request.TwoFactorAuthRequest;
+import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
 import java.util.List;
@@ -113,4 +116,22 @@ public interface UserService {
    * @return {@link AuthUserDto} representing the user with the updated or unchanged 2FA state.
    */
   AuthUserDto changeTwoFactorAuthByAdmin(String userId, TwoFactorAuthRequest request);
+
+  /**
+   * Blocks a user until the specified expiration date.
+   *
+   * @param request The block request containing user ID and expiration date.
+   * @throws ForbiddenActionException if a user attempts to block themselves or if a non-super admin
+   *     attempts to block a super admin.
+   */
+  void blockUser(BlockUserRequest request);
+
+  /**
+   * Unblocks a previously blocked user.
+   *
+   * @param request The unblock request containing the user ID.
+   * @throws ForbiddenActionException if a user attempts to unblock themselves or if a non-super
+   *     admin attempts to unblock a super admin.
+   */
+  void unblockUser(UnblockUserRequest request);
 }

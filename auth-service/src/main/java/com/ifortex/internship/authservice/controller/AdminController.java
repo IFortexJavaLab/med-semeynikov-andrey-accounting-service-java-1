@@ -1,35 +1,45 @@
 package com.ifortex.internship.authservice.controller;
 
 import com.ifortex.internship.authservice.service.AuthService;
+import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
+import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/accounting/")
+@RequestMapping("/api/v1/accounting")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "BearerAuth")
 @Tag(name = "Admin functions API")
 public class AdminController {
 
   private final AuthService authService;
+  private final UserService userService;
 
   @Operation(summary = "Creates new admin")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   @PostMapping("/admin")
-  public ResponseEntity<?> createAdmin(@RequestBody CreateAdminRequest request) {
+  public ResponseEntity<?> createAdmin(@RequestBody @Valid CreateAdminRequest request) {
 
     CreateUserResponse response = authService.createAdmin(request);
 
@@ -39,7 +49,7 @@ public class AdminController {
   @Operation(summary = "Creates new client")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   @PostMapping("/client")
-  public ResponseEntity<?> createUser(@RequestBody CreateUserRequest request) {
+  public ResponseEntity<?> createUser(@RequestBody @Valid CreateUserRequest request) {
 
     CreateUserResponse response = authService.createUser(request);
 
@@ -67,5 +77,27 @@ public class AdminController {
     SuccessResponse response = authService.resetPasswordWithEmail(userId);
 
     return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "Block user",
+      description =
+          "Blocks a user until a specified date. Only ADMIN and SUPER_ADMIN can perform this action")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  @PatchMapping("/users/block")
+  public ResponseEntity<?> blockUser(@RequestBody @Valid BlockUserRequest request) {
+    userService.blockUser(request);
+    return ResponseEntity.status(HttpStatus.OK).build();
+  }
+
+  @Operation(
+      summary = "Unblock user",
+      description =
+          "Unblocks a previously blocked user. Only ADMIN and SUPER_ADMIN can perform this action")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  @PatchMapping("/users/unblock")
+  public ResponseEntity<?> unblockUser(@RequestBody @Valid UnblockUserRequest request) {
+    userService.unblockUser(request);
+    return ResponseEntity.status(HttpStatus.OK).build();
   }
 }

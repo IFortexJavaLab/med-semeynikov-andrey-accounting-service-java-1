@@ -22,13 +22,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
   @ExceptionHandler(AuthServiceException.class)
-  public ResponseEntity<String> handleAuthServiceExceptions(AuthServiceException ex) {
+  public ResponseEntity<?> handleAuthServiceExceptions(AuthServiceException ex) {
 
     ResponseStatus statusAnnotation = ex.getClass().getAnnotation(ResponseStatus.class);
     HttpStatus status =
         statusAnnotation != null ? statusAnnotation.value() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    return new ResponseEntity<>(ex.getMessage(), status);
+    Map<String, String> responseBody = new HashMap<>();
+    responseBody.put("message", ex.getMessage());
+
+    return ResponseEntity.status(status).body(responseBody);
   }
 
   // feature handle authentication exceptions instead of UsernameNotFoundException,

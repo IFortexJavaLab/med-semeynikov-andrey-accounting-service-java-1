@@ -2,6 +2,7 @@ package com.ifortex.internship.authservice.service.impl;
 
 import com.ifortex.internship.authservice.exception.AuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
+import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.service.RefreshTokenService;
@@ -22,7 +23,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.crypto.SecretKey;
@@ -88,24 +94,32 @@ public class TokenServiceImpl implements TokenService {
   public TokensResponse refreshTokens(String refreshToken) {
     log.debug("Refreshing access token");
 
+    User user;
     try {
       RefreshToken storedRefreshtoken = refreshTokenService.findByToken(refreshToken);
       refreshTokenService.verifyExpiration(storedRefreshtoken);
 
-      User user = storedRefreshtoken.getUser();
-
-      String newAccessToken = generateAccessToken(user);
-      log.debug("Access token refreshed successfully for user: {}", user.getEmail());
-
-      RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
-
-      return new TokensResponse(
-          newAccessToken, newRefreshToken.getToken(), jwtExpirationMs, refreshTokenExpirationS);
+      user = storedRefreshtoken.getUser();
 
     } catch (AuthServiceException e) {
       log.debug("Exception message: {}", e.getMessage());
       throw new AuthorizationException("Your session has expired. Please log in again.");
     }
+    boolean isBlocked =
+        user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now());
+    if (isBlocked) {
+      log.debug("User with ID: {} is blocked", user.getUserId());
+      throw new UserBlockedException(
+          String.format("Your account is blocked due to: %s", user.getBlockedUntil()));
+    }
+
+    String newAccessToken = generateAccessToken(user);
+    log.debug("Access token refreshed successfully for user: {}", user.getEmail());
+
+    RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
+
+    return new TokensResponse(
+        newAccessToken, newRefreshToken.getToken(), jwtExpirationMs, refreshTokenExpirationS);
   }
 
   public boolean isValid(String authToken) {

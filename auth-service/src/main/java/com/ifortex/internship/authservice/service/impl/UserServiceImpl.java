@@ -4,20 +4,25 @@ import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
+import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.model.mapper.UserMapper;
 import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.UserService;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
+import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.request.TwoFactorAuthRequest;
+import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
 import jakarta.mail.MessagingException;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -55,8 +60,7 @@ public class UserServiceImpl implements UserService {
 
   public AuthUserDto getUser() {
     String userId = authService.getUserIdFromAuthentication();
-    AuthUserDto authUserDto = getUserByUserId(userId);
-    return authUserDto;
+    return getUserByUserId(userId);
   }
 
   public List<AuthUserDto> getAllUsers() {
@@ -240,6 +244,77 @@ public class UserServiceImpl implements UserService {
     userRepository.save(savedUser);
 
     return userMapper.toDto(savedUser);
+  }
+
+  @Transactional
+  public void blockUser(BlockUserRequest request) {
+
+    log.debug("Blocking user with ID: {}", request.getUserId());
+
+    var user = findUserByUserId(request.getUserId());
+
+    boolean isUserBlockingHimself =
+        user.getUserId().equals(authService.getUserIdFromAuthentication());
+    if (isUserBlockingHimself) {
+      log.debug("Attempt to block oneself. User with ID: {}", user.getUserId());
+      throw new ForbiddenActionException("You can't block yourself");
+    }
+
+    validateSuperAdminModificationPermission(user);
+
+    user.setBlockedUntil(request.getExpiresAt());
+    user.setRefreshToken(null);
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+    userRepository.save(user);
+
+    log.debug("User with ID: {} blocked successfully", user.getUserId());
+  }
+
+  @Transactional
+  public void unblockUser(UnblockUserRequest request) {
+
+    log.debug("Unblocking user with ID: {}", request.getUserId());
+
+    var user = findUserByUserId(request.getUserId());
+
+    boolean isUserUnblockingHimself =
+        user.getUserId().equals(authService.getUserIdFromAuthentication());
+    if (isUserUnblockingHimself) {
+      log.debug("Attempt to unblock oneself. User with ID: {}", user.getUserId());
+      throw new ForbiddenActionException("You can't unblock yourself");
+    }
+
+    validateSuperAdminModificationPermission(user);
+
+    user.setBlockedUntil(null);
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+    userRepository.save(user);
+
+    log.debug("User with ID: {} unblocked successfully", user.getUserId());
+  }
+
+  /**
+   * Validates if the current user has permission to modify a super admin.
+   *
+   * <p>Ensures that only a super admin can edit another super admin. If a regular admin attempts to
+   * modify a super admin, an exception is thrown.
+   *
+   * @param user The user being modified.
+   * @throws ForbiddenActionException if a non-super admin attempts to modify a super admin.
+   */
+  private void validateSuperAdminModificationPermission(User user) {
+    boolean isEditedUserSuperAdmin =
+        user.getRoles().stream().anyMatch(role -> role.getName().equals(UserRole.ROLE_SUPER_ADMIN));
+
+    if (isEditedUserSuperAdmin) {
+      boolean isEditorSuperAdmin =
+          authService.getUserRolesFromAuthentication().stream()
+              .anyMatch(role -> role.equals(UserRole.ROLE_SUPER_ADMIN.name()));
+      if (!isEditorSuperAdmin) {
+        log.debug("Attempt to block user with ROLE_SUPER_ADMIN with ROLE_ADMIN");
+        throw new ForbiddenActionException("You can't edit user with ROLE_SUPER_ADMIN");
+      }
+    }
   }
 
   /**

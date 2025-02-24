@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -85,9 +86,9 @@ public class AdminController {
           "Blocks a user until a specified date. Only ADMIN and SUPER_ADMIN can perform this action")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   @PatchMapping("/users/block")
-  public ResponseEntity<?> blockUser(@RequestBody @Valid BlockUserRequest request) {
+  public ResponseEntity<Void> blockUser(@RequestBody @Valid BlockUserRequest request) {
     userService.blockUser(request);
-    return ResponseEntity.status(HttpStatus.OK).build();
+    return ResponseEntity.noContent().build();
   }
 
   @Operation(
@@ -96,8 +97,27 @@ public class AdminController {
           "Unblocks a previously blocked user. Only ADMIN and SUPER_ADMIN can perform this action")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   @PatchMapping("/users/unblock")
-  public ResponseEntity<?> unblockUser(@RequestBody @Valid UnblockUserRequest request) {
+  public ResponseEntity<Void> unblockUser(@RequestBody @Valid UnblockUserRequest request) {
     userService.unblockUser(request);
-    return ResponseEntity.status(HttpStatus.OK).build();
+    return ResponseEntity.noContent().build();
+  }
+
+  @Operation(
+      summary = "Soft delete user",
+      description =
+          "Soft deletes a user by marking them as deleted without removing their data from the system")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  @DeleteMapping("/users/{userId}")
+  public ResponseEntity<Void> softDeleteUser(@PathVariable("userId") String userId) {
+    userService.softDeleteUser(userId);
+    return ResponseEntity.noContent().build();
+  }
+
+  @Operation(summary = "Delete user entirely")
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
+  @DeleteMapping("/users/{userId}/hard")
+  public ResponseEntity<Void> hardDeleteUser(@PathVariable("userId") String userId) {
+    userService.hardDelete(userId);
+    return ResponseEntity.noContent().build();
   }
 }

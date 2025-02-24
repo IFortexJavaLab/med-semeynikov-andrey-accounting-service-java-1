@@ -25,7 +25,11 @@ import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.SubscriptionListParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import jakarta.annotation.PostConstruct;
-import java.util.*;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -163,6 +167,7 @@ public class StripeService {
             "Error occurred while processing your payment. Please try again later");
       }
       user.setStripeCustomerId(customer.getId());
+      user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
       userRepository.save(user);
       log.debug(
           "Generated and saved StripeCustomerId: {} for user with ID: {}",
@@ -243,5 +248,12 @@ public class StripeService {
           "Error cancelling Stripe subscription: {}. Code: {}", e.getMessage(), e.getCode(), e);
       throw new StripeServiceException("Failed to cancel subscription");
     }
+  }
+
+  public void deleteUser(User user) throws StripeException {
+
+    log.debug("Deleting user with ID: {} from stripe", user.getUserId());
+    Customer resource = Customer.retrieve(user.getStripeCustomerId());
+    resource.delete();
   }
 }

@@ -4,6 +4,7 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
@@ -134,4 +135,31 @@ public interface UserService {
    *     admin attempts to unblock a super admin.
    */
   void unblockUser(UnblockUserRequest request);
+
+  /**
+   * Performs a soft delete operation on a user.
+   *
+   * <p>This method marks the user as soft deleted by setting the {@code softDeleted} flag to {@code
+   * true}
+   *
+   * @param userId The ID of the user to be soft deleted.
+   * @throws ForbiddenActionException If the user attempts to delete themselves or if a non-super *
+   *     admin attempts to delete a super admin.
+   * @throws EntityNotFoundException If no user is found with the provided {@code userId}.
+   */
+  void softDeleteUser(String userId);
+
+  /**
+   * Performs a hard deletion of a user with the specified user ID. This method removes the user
+   * from the database and also attempts to delete their associated records from external services
+   * such as the User Management API and Stripe.
+   *
+   * <p>If an error occurs while calling external services, an {@link InternalAuthServiceException}
+   * is thrown.
+   *
+   * @param userId the unique identifier of the user to be deleted.
+   * @throws InternalAuthServiceException if an error occurs while deleting the user in external
+   *     services (User Management or Stripe).
+   */
+  void hardDelete(String userId);
 }

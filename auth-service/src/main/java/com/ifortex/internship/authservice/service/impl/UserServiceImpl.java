@@ -5,6 +5,7 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
@@ -14,6 +15,7 @@ import com.ifortex.internship.authservice.repository.UserRepository;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.UserService;
+import com.ifortex.internship.authservice.stripe.service.StripeService;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
@@ -21,6 +23,11 @@ import com.ifortex.internship.authserviceapi.dto.request.TwoFactorAuthRequest;
 import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
+import com.ifortex.internship.usermanagementapi.UserManagementApi;
+import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
+import com.ifortex.internship.usermanagementapi.dto.request.DeleteUserRequest;
+import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
+import com.stripe.exception.StripeException;
 import jakarta.mail.MessagingException;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -39,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+  private final StripeService stripeService;
+
   @Value("${app.otp.emailExpirationMinutes}")
   private int expirationMinutes;
 
@@ -50,6 +59,7 @@ public class UserServiceImpl implements UserService {
   private final EmailService emailService;
   private final Environment environment;
   private final CustomAuthenticationProvider authenticationProvider;
+  private final UserManagementApi userManagementApi;
 
   public AuthUserDto getUserByUserId(String userId) {
     log.debug("Getting user by userId: {}", userId);
@@ -105,7 +115,7 @@ public class UserServiceImpl implements UserService {
 
     String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
     user.setPassword(newEncodedPassword);
-    user.setUpdatedAt(LocalDateTime.now());
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     user.setTemporaryPassword(null);
     userRepository.save(user);
 
@@ -133,6 +143,11 @@ public class UserServiceImpl implements UserService {
     if (currentEmail.equals(newEmail)) {
       log.debug("New provided email is equal to the current one for user: {}", currentEmail);
       throw new InvalidRequestException("New provided email is equal to the current one");
+    }
+
+    if (userRepository.findByEmail(newEmail).isPresent()) {
+      log.debug("User with email: {} already registered in the system", newEmail);
+      throw new InvalidRequestException("New email already registered in the system");
     }
 
     log.debug("Changing email for user: {}", currentEmail);
@@ -182,7 +197,7 @@ public class UserServiceImpl implements UserService {
                 });
 
     user.setEmail(newEmail);
-    user.setUpdatedAt(LocalDateTime.now());
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     userRepository.save(user);
     redisService.deleteOtp(redisKey);
 
@@ -216,7 +231,7 @@ public class UserServiceImpl implements UserService {
 
     log.info("Updating 2FA state for user: {}", email);
     savedUser.setTwoFactorEnabled(newTwoFactorState);
-    savedUser.setUpdatedAt(LocalDateTime.now());
+    savedUser.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     userRepository.save(savedUser);
 
     return userMapper.toDto(savedUser);
@@ -240,7 +255,7 @@ public class UserServiceImpl implements UserService {
 
     log.info("Updating 2FA state for user with id: {}", userId);
     savedUser.setTwoFactorEnabled(newTwoFactorState);
-    savedUser.setUpdatedAt(LocalDateTime.now());
+    savedUser.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     userRepository.save(savedUser);
 
     return userMapper.toDto(savedUser);
@@ -253,12 +268,7 @@ public class UserServiceImpl implements UserService {
 
     var user = findUserByUserId(request.getUserId());
 
-    boolean isUserBlockingHimself =
-        user.getUserId().equals(authService.getUserIdFromAuthentication());
-    if (isUserBlockingHimself) {
-      log.debug("Attempt to block oneself. User with ID: {}", user.getUserId());
-      throw new ForbiddenActionException("You can't block yourself");
-    }
+    validateSelfModification(user, "block");
 
     validateSuperAdminModificationPermission(user);
 
@@ -277,12 +287,7 @@ public class UserServiceImpl implements UserService {
 
     var user = findUserByUserId(request.getUserId());
 
-    boolean isUserUnblockingHimself =
-        user.getUserId().equals(authService.getUserIdFromAuthentication());
-    if (isUserUnblockingHimself) {
-      log.debug("Attempt to unblock oneself. User with ID: {}", user.getUserId());
-      throw new ForbiddenActionException("You can't unblock yourself");
-    }
+    validateSelfModification(user, "unblock");
 
     validateSuperAdminModificationPermission(user);
 
@@ -291,6 +296,89 @@ public class UserServiceImpl implements UserService {
     userRepository.save(user);
 
     log.debug("User with ID: {} unblocked successfully", user.getUserId());
+  }
+
+  @Transactional
+  public void softDeleteUser(String userId) {
+
+    log.debug("Attempt to delete  user with ID: {} with soft delete", userId);
+
+    var user = findUserByUserId(userId);
+
+    validateSelfModification(user, "soft delete"); // feature convert to enum
+    validateSuperAdminModificationPermission(user);
+
+    user.setSoftDeleted(true);
+    user.setRefreshToken(null);
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+
+    userRepository.save(user);
+
+    try {
+      userManagementApi.saveUser(
+          new AuthUserForUserManagementDto(user.getUserId(), user.isSoftDeleted()));
+    } catch (CustomFeignException e) {
+      log.debug(
+          "Error occurred during call to the user management service. Details: {}", e.getMessage());
+      throw new InternalAuthServiceException(
+          "Error occurred while deleting. Please try again later");
+    }
+
+    log.debug("User user with ID: {} deleted successfully with soft delete", userId);
+  }
+
+  @Transactional
+  public void hardDelete(String userId) {
+
+    log.debug("Attempt to delete  user with ID: {} with hard delete", userId);
+
+    var user = findUserByUserId(userId);
+    validateSelfModification(user, "hard delete");
+    userRepository.delete(user);
+
+    try {
+      userManagementApi.deleteUser(new DeleteUserRequest(user.getUserId()));
+      stripeService.deleteUser(user);
+    } catch (CustomFeignException e) {
+      log.debug(
+          "Error occurred during call to the user management service. Details: {}", e.getMessage());
+      throw new InternalAuthServiceException(
+          "Error occurred while deleting. Please try again later");
+    } catch (StripeException e) {
+      log.error(
+          "Stripe API call failed: {}. Error code: {}. StackTrace: ",
+          e.getMessage(),
+          e.getCode(),
+          e);
+      throw new InternalAuthServiceException(
+          String.format(
+              "Error occurred while deleting stripe customer account with user ID: %s and Stripe customer ID: %s",
+              user.getUserId(), user.getStripeCustomerId()));
+    }
+
+    log.debug("User user with ID: {} deleted successfully with hard delete", userId);
+
+    // todo how to rollback changes when request two different services through rest?
+  }
+
+  /**
+   * Validates if the provided action is being performed on the user itself.
+   *
+   * <p>This method checks if the user performing the action is trying to modify their own account.
+   * If so, a {@link ForbiddenActionException} is thrown with an appropriate message indicating that
+   * performing the action on oneself is not allowed.
+   *
+   * @param user The user being modified or acted upon.
+   * @param action The action being performed, such as "block", "unblock", etc. Used for error
+   *     message.
+   * @throws ForbiddenActionException If the user is trying to modify their own account.
+   */
+  private void validateSelfModification(User user, String action) {
+    boolean isSelfModification = user.getUserId().equals(authService.getUserIdFromAuthentication());
+    if (isSelfModification) {
+      log.debug("Attempt to {} oneself. User with ID: {}", action, user.getUserId());
+      throw new ForbiddenActionException(String.format("You can't %s yourself", action));
+    }
   }
 
   /**

@@ -74,7 +74,7 @@ public class UserController {
   @Operation(summary = "Request password reset")
   @PostMapping("/password/reset")
   public ResponseEntity<?> initiatePasswordReset(
-      @RequestParam("newEmail")
+      @RequestParam("email")
           @Email(message = "Invalid email format")
           @NotBlank(message = "Email cannot be empty")
           String email) {

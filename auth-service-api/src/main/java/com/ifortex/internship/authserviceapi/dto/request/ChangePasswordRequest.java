@@ -20,5 +20,6 @@ public class ChangePasswordRequest {
           "Password must contain at least 1 uppercase letter, 1 number, and 1 special character.")
   private String newPassword;
 
+  // todo написать собственную аннотацию, которая проверяет идентичность с password
   @NotBlank private String passwordConfirmation;
 }

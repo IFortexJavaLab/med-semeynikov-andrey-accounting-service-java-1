@@ -5,8 +5,8 @@ import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistere
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
@@ -150,7 +150,7 @@ public interface AuthService {
    */
   List<String> getUserRolesFromAuthentication();
 
-  // todo перенести в другое место
+  // feature move to other service
   /**
    * Retrieves a list of {@link AuthUserDto} based on provided filters.
    *
@@ -202,7 +202,7 @@ public interface AuthService {
    *
    * @param request the request containing the email and admin role type
    * @return a response containing a success message, temporary password, and its expiration time
-   * @throws RegistrationFailedException if a non-super admin attempts to create a super admin
+   * @throws InternalAuthServiceException if a non-super admin attempts to create a super admin
    */
   CreateUserResponse createAdmin(CreateAdminRequest request);
 }

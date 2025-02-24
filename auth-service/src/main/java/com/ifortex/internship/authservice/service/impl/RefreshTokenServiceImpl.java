@@ -37,7 +37,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                   return new EntityNotFoundException(String.format("User %s not found", email));
                 });
 
-    deleteTokensByUserEmail(email);
+    deleteTokenByUserEmail(email);
 
     RefreshToken refreshToken = new RefreshToken();
     refreshToken.setUser(user);
@@ -60,9 +60,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
           "Refresh token has expired. UserId={}, ExpiryDate={}",
           refreshToken.getUser().getUserId(),
           refreshToken.getExpiryDate());
-      log.debug("Deleting refresh token from db");
-      refreshTokenRepository.delete(refreshToken);
-      log.debug("Refresh token has been deleted from db");
 
       throw new AuthorizationException("Refresh token has expired.");
     }
@@ -75,10 +72,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   }
 
   @Transactional
-  public void deleteTokensByUserEmail(String email) {
-    log.debug("Deleting refresh tokens for user: {}", email);
+  public void deleteTokenByUserEmail(String email) {
+    log.debug("Deleting refresh token for user: {}", email);
     refreshTokenRepository.deleteRefreshTokenByUserEmail(email);
-    log.debug("Deleted all refresh tokens for user: {}", email);
+    log.debug("Deleted refresh token for user: {}", email);
   }
 
   public RefreshToken findByToken(String token) {

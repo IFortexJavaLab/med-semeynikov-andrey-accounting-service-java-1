@@ -13,5 +13,5 @@ public class CreateAdminRequest {
   @NotBlank(message = "Email is required")
   private String email;
 
-  private boolean isSuperAdmin;
+  private Boolean isSuper = false;
 }

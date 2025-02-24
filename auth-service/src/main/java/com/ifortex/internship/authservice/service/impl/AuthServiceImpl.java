@@ -6,9 +6,8 @@ import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistere
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authservice.exception.custom.RegistrationFailedException;
-import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
@@ -16,6 +15,7 @@ import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.model.constant.UserRole;
+import com.ifortex.internship.authservice.model.mapper.UserMapper;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
 import com.ifortex.internship.authservice.repository.RoleRepository;
 import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
@@ -43,6 +43,7 @@ import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
 import com.stripe.param.CustomerCreateParams;
 import jakarta.mail.MessagingException;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -78,6 +79,7 @@ public class AuthServiceImpl implements AuthService {
   private final CustomAuthenticationProvider authenticationProvider;
   private final TemporaryPasswordRepository passwordRepository;
   private final Environment environment;
+  private final UserMapper userMapper;
 
   @Value("${app.otp.loginExpirationMinutes}")
   private int loginOtpExpirationMinutes;
@@ -92,7 +94,6 @@ public class AuthServiceImpl implements AuthService {
 
     log.debug("Register user: {}", userEmail);
 
-    // todo feature change logic according to soft delete
     if (userRepository.findByEmail(userEmail).isPresent()) {
       log.debug("Email: {} is already registered.", userEmail);
       log.info("Failed to register user");
@@ -120,8 +121,8 @@ public class AuthServiceImpl implements AuthService {
             .setEmail(userEmail)
             .setPassword(hashedPassword)
             .setRoles(roles)
-            .setCreatedAt(LocalDateTime.now())
-            .setUpdatedAt(LocalDateTime.now());
+            .setCreatedAt(LocalDateTime.now(Clock.systemUTC()))
+            .setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
 
     registerUserInStripe(user);
 
@@ -133,7 +134,7 @@ public class AuthServiceImpl implements AuthService {
     } catch (CustomFeignException e) {
       log.debug(
           "Error occurred during call to the user management service. Details: {}", e.getMessage());
-      throw new RegistrationFailedException(
+      throw new InternalAuthServiceException(
           "Error occurred while registration. Please try again later");
     }
 
@@ -147,13 +148,17 @@ public class AuthServiceImpl implements AuthService {
 
   @Transactional
   public CreateUserResponse createAdmin(CreateAdminRequest request) {
+    log.debug("Creating admin with email: {}", request.getEmail());
+
     List<String> currentRoles = getUserRolesFromAuthentication();
 
-    if (request.isSuperAdmin() && !currentRoles.contains(UserRole.ROLE_SUPER_ADMIN.name())) {
-      throw new RegistrationFailedException("Only Super Admin can create another Admin.");
+    boolean isCreatedSuperAdmin = request.getIsSuper();
+    boolean isCreatingSuperAdmin = currentRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
+    if (isCreatedSuperAdmin && !isCreatingSuperAdmin) {
+      throw new ForbiddenActionException("Only Super Admin can create another Admin.");
     }
 
-    UserRole role = request.isSuperAdmin() ? UserRole.ROLE_SUPER_ADMIN : UserRole.ROLE_ADMIN;
+    UserRole role = request.getIsSuper() ? UserRole.ROLE_SUPER_ADMIN : UserRole.ROLE_ADMIN;
     return createUserWithRole(request.getEmail(), role);
   }
 
@@ -164,7 +169,7 @@ public class AuthServiceImpl implements AuthService {
    * @param role the role to assign to the user
    * @return a response containing a success message, temporary password, and its expiration time
    * @throws EmailAlreadyRegistered if the email is already registered
-   * @throws RegistrationFailedException if the user role is not found or user creation fails
+   * @throws InternalAuthServiceException if the user role is not found or user creation fails
    */
   private CreateUserResponse createUserWithRole(String email, UserRole role) {
     log.debug("Creating user: {}", email);
@@ -181,8 +186,8 @@ public class AuthServiceImpl implements AuthService {
             .setUserId(userId)
             .setEmail(email)
             .setRoles(Collections.singletonList(userRole))
-            .setCreatedAt(LocalDateTime.now())
-            .setUpdatedAt(LocalDateTime.now());
+            .setCreatedAt(LocalDateTime.now(Clock.systemUTC()))
+            .setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
 
     TemporaryPassword temporaryPassword =
         new TemporaryPassword(
@@ -224,7 +229,7 @@ public class AuthServiceImpl implements AuthService {
    * @param role the user role to retrieve
    * @param email the email of the user being registered (used for logging)
    * @return the corresponding Role entity
-   * @throws RegistrationFailedException if the role is not found in the database
+   * @throws InternalAuthServiceException if the role is not found in the database
    */
   private Role getRoleForUserType(UserRole role, String email) {
     return roleRepository
@@ -232,7 +237,7 @@ public class AuthServiceImpl implements AuthService {
         .orElseThrow(
             () -> {
               log.debug("User Role: {} not found", role);
-              return new RegistrationFailedException(
+              return new InternalAuthServiceException(
                   String.format("Failed to register user with email: %s", email));
             });
   }
@@ -241,7 +246,7 @@ public class AuthServiceImpl implements AuthService {
    * Registers the newly created user in the UserManagement services.
    *
    * @param user the user to be registered
-   * @throws RegistrationFailedException if the external service call fails
+   * @throws InternalAuthServiceException if the external service call fails
    */
   private void registerUserInUserManagementService(User user) {
     try {
@@ -249,7 +254,7 @@ public class AuthServiceImpl implements AuthService {
     } catch (CustomFeignException e) {
       log.debug(
           "Error occurred during call to the user management service. Details: {}", e.getMessage());
-      throw new RegistrationFailedException(
+      throw new InternalAuthServiceException(
           String.format("Failed to register with email: %s. Try again later", user.getEmail()));
     }
   }
@@ -265,14 +270,6 @@ public class AuthServiceImpl implements AuthService {
 
     SecurityContextHolder.getContext().setAuthentication(authentication);
     User user = (User) authentication.getPrincipal();
-
-    boolean isBlocked =
-        user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now());
-    if (isBlocked) {
-      log.debug("User with ID: {} is blocked", user.getUserId());
-      throw new UserBlockedException(
-          String.format("Your account is blocked due to: %s", user.getBlockedUntil()));
-    }
 
     log.debug("User: {} successfully authenticated.", userEmail);
 
@@ -423,7 +420,7 @@ public class AuthServiceImpl implements AuthService {
     String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
     user.setPassword(newEncodedPassword);
     user.setTemporaryPassword(null);
-    user.setUpdatedAt(LocalDateTime.now());
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     userRepository.save(user);
 
     redisService.deleteOtp(redisKey);
@@ -483,10 +480,7 @@ public class AuthServiceImpl implements AuthService {
     Predicate<User> userFilter =
         filterByRoles(roles).and(filterByStatus(status)).and(filterByEmail(email));
 
-    return users.stream()
-        .filter(userFilter)
-        .map(this::convertToAuthUserDto)
-        .collect(Collectors.toList());
+    return users.stream().filter(userFilter).map(userMapper::toDto).collect(Collectors.toList());
   }
 
   @Transactional
@@ -518,6 +512,7 @@ public class AuthServiceImpl implements AuthService {
 
     user.setPassword(null);
     user.setTemporaryPassword(temporaryPassword);
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     userRepository.save(user);
     log.debug("Temporary password created and saved for user ID: {}", userId);
 
@@ -550,6 +545,7 @@ public class AuthServiceImpl implements AuthService {
     deleteOldTemporaryPassword(user);
 
     user.setPassword(null);
+    user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
     userRepository.save(user);
     log.debug("Password set to null for user ID: {}", userId);
 
@@ -686,30 +682,6 @@ public class AuthServiceImpl implements AuthService {
    */
   private Predicate<User> filterByEmail(String email) {
     return user -> email == null || user.getEmail().toLowerCase().contains(email.toLowerCase());
-  }
-
-  /**
-   * Converts a {@link User} entity to an {@link AuthUserDto}.
-   *
-   * <p>This method extracts relevant fields from the {@link User} entity, including user ID, email,
-   * two-factor authentication status, soft-deletion status, user roles, and account status.
-   *
-   * @param user The {@link User} entity to convert. Cannot be null.
-   * @return An {@link AuthUserDto} representing the user.
-   */
-  private AuthUserDto convertToAuthUserDto(User user) {
-    List<String> roleNames =
-        user.getRoles().stream()
-            .map(Role::getName)
-            .map(UserRole::name)
-            .collect(Collectors.toList());
-
-    return new AuthUserDto()
-        .setUserId(user.getUserId())
-        .setEmail(user.getEmail())
-        .setTwoFactorEnabled(user.isTwoFactorEnabled())
-        .setSoftDeleted(user.isSoftDeleted())
-        .setRoles(roleNames);
   }
 
   /**

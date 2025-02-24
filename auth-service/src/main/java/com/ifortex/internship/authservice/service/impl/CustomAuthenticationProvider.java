@@ -1,6 +1,7 @@
 package com.ifortex.internship.authservice.service.impl;
 
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
+import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.constant.UserRole;
@@ -41,6 +42,12 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
     User user = findUserByEmail(email);
 
+    boolean isSoftDeleted = user.isSoftDeleted();
+    if (isSoftDeleted) {
+      log.debug("Account of the user with ID: {} is soft deleted", user.getUserId());
+      throw new AuthorizationException("Invalid email or password");
+    }
+
     TemporaryPassword temporaryPassword = user.getTemporaryPassword();
     if (temporaryPassword != null) {
       boolean isTemporaryPasswordExpired =
@@ -63,11 +70,19 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
       throw new AuthorizationException("Invalid email or password");
     }
 
-    if (verifyPassword(password, user.getPassword())) {
-      return createAuthenticationToken(user, password);
-    } else {
+    if (!verifyPassword(password, user.getPassword())) {
       throw new AuthorizationException("Invalid email or password");
     }
+
+    boolean isBlocked =
+        user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now());
+    if (isBlocked) {
+      log.debug("User with ID: {} is blocked", user.getUserId());
+      throw new UserBlockedException(
+          String.format("Your account is blocked due to: %s", user.getBlockedUntil()));
+    }
+
+    return createAuthenticationToken(user, password);
   }
 
   @Override

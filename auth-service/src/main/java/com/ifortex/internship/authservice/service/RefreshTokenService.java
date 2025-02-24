@@ -37,7 +37,7 @@ public interface RefreshTokenService {
    *
    * @param email the ID of the user whose tokens should be deleted
    */
-  void deleteTokensByUserEmail(String email);
+  void deleteTokenByUserEmail(String email);
 
   /**
    * Retrieves a refresh token by its value.

@@ -10,6 +10,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserMapper {
 
+  /**
+   * Converts a {@link User} entity to an {@link AuthUserDto}.
+   *
+   * <p>This method maps user entity fields to a DTO representation, including user ID, email,
+   * two-factor authentication status, soft deletion status, assigned roles, and blocked status.
+   *
+   * @param user the User entity to be converted
+   * @return an AuthUserDto containing the mapped user data
+   */
   public AuthUserDto toDto(User user) {
     AuthUserDto dto =
         new AuthUserDto()

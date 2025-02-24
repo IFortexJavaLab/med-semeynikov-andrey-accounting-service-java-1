@@ -5,8 +5,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-public class RegistrationFailedException extends AuthServiceException {
-    public RegistrationFailedException(String message) {
-        super(message);
-    }
+public class InternalAuthServiceException extends AuthServiceException {
+  public InternalAuthServiceException(String message) {
+    super(message);
+  }
 }

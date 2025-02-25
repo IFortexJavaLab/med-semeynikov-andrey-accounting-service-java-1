@@ -26,7 +26,7 @@ import com.ifortex.internship.authservice.service.TokenService;
 import com.ifortex.internship.authservice.stripe.exception.StripeServiceException;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
-import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
+import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
@@ -142,7 +142,7 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Transactional
-  public CreateUserResponse createUser(CreateUserRequest request) {
+  public CreateUserResponse createClient(CreateClientRequest request) {
     return createUserWithRole(request.getEmail(), UserRole.ROLE_USER);
   }
 

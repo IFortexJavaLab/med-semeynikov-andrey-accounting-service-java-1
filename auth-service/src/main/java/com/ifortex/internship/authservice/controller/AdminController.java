@@ -4,7 +4,7 @@ import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.UserService;
 import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
-import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
+import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
 import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
@@ -50,9 +50,9 @@ public class AdminController {
   @Operation(summary = "Creates new client")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   @PostMapping("/client")
-  public ResponseEntity<?> createUser(@RequestBody @Valid CreateUserRequest request) {
+  public ResponseEntity<?> createClient(@RequestBody @Valid CreateClientRequest request) {
 
-    CreateUserResponse response = authService.createUser(request);
+    CreateUserResponse response = authService.createClient(request);
 
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }

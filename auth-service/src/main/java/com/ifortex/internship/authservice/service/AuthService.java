@@ -9,7 +9,7 @@ import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceEx
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
-import com.ifortex.internship.authserviceapi.dto.request.CreateUserRequest;
+import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
@@ -44,12 +44,12 @@ public interface AuthService {
   void registerUser(RegistrationRequest request);
 
   /**
-   * Creates a new user with the default user role.
+   * Creates a new client.
    *
-   * @param request the request containing the email of the user to be created
+   * @param request the request containing the email of the client to be created
    * @return a response containing a success message, temporary password, and its expiration time
    */
-  CreateUserResponse createUser(CreateUserRequest request);
+  CreateUserResponse createClient(CreateClientRequest request);
 
   /**
    * Authenticates a user based on the provided login credentials.

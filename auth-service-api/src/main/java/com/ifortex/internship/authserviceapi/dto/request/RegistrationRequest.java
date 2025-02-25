@@ -1,5 +1,6 @@
 package com.ifortex.internship.authserviceapi.dto.request;
 
+import com.ifortex.internship.authserviceapi.validation.PasswordMatch;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -13,6 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@PasswordMatch
 public class RegistrationRequest {
   @Email(message = "Invalid email format")
   @NotBlank(message = "Email is required")

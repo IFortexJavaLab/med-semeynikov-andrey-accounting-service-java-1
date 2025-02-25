@@ -105,14 +105,6 @@ public class UserServiceImpl implements UserService {
               user.getEmail()));
     }
 
-    boolean passwordMismatch = !request.getNewPassword().equals(request.getPasswordConfirmation());
-    if (passwordMismatch) {
-      log.debug(
-          "Password and password confirmation  do not match for user with email: {}",
-          user.getEmail());
-      throw new InvalidRequestException("Password and confirmation password do not match.");
-    }
-
     String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
     user.setPassword(newEncodedPassword);
     user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));

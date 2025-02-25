@@ -45,11 +45,11 @@ public class TokenServiceImpl implements TokenService {
   @Value("${app.jwtSecret}")
   private String jwtSecret;
 
-  @Value("${app.jwtExpirationMs}")
-  private int jwtExpirationMs;
+  @Value("${app.jwtExpirationS}")
+  private long jwtExpirationS;
 
   @Value("${app.refreshTokenExpirationS}")
-  private int refreshTokenExpirationS;
+  private long refreshTokenExpirationS;
 
   private final RefreshTokenService refreshTokenService;
 
@@ -86,7 +86,7 @@ public class TokenServiceImpl implements TokenService {
         .subject(user.getEmail())
         .claims(claims)
         .issuedAt(new Date(System.currentTimeMillis()))
-        .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+        .expiration(new Date(System.currentTimeMillis() + jwtExpirationS * 1000))
         .signWith(getSigningKey())
         .compact();
   }
@@ -119,7 +119,7 @@ public class TokenServiceImpl implements TokenService {
     RefreshToken newRefreshToken = createRefreshToken(user.getEmail());
 
     return new TokensResponse(
-        newAccessToken, newRefreshToken.getToken(), jwtExpirationMs, refreshTokenExpirationS);
+        newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS);
   }
 
   public boolean isValid(String authToken) {

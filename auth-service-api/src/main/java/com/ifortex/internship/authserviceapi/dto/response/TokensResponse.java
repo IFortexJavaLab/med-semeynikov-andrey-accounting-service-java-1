@@ -12,6 +12,6 @@ import lombok.Setter;
 public class TokensResponse {
   private String accessToken;
   private String refreshToken;
-  private Integer accessTokenExpirationMs;
-  private Integer refreshTokenExpirationS;
+  private Long accessTokenExpirationS;
+  private Long refreshTokenExpirationS;
 }

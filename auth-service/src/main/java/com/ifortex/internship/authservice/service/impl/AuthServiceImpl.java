@@ -100,13 +100,6 @@ public class AuthServiceImpl implements AuthService {
       throw new EmailAlreadyRegistered("Email: " + userEmail + " is already registered.");
     }
 
-    boolean passwordMismatch = !request.getPassword().equals(request.getPasswordConfirmation());
-    if (passwordMismatch) {
-      log.debug("Password and confirmation password do not match.");
-      log.info("Failed to register user");
-      throw new InvalidRequestException("Password and confirmation password do not match.");
-    }
-
     String hashedPassword = passwordEncoder.encode(request.getPassword());
 
     List<Role> roles =
@@ -401,13 +394,6 @@ public class AuthServiceImpl implements AuthService {
       throw new AuthorizationException("Invalid OTP provided. Please try again.");
     }
 
-    boolean passwordMismatch = !request.getNewPassword().equals(request.getPasswordConfirmation());
-    if (passwordMismatch) {
-      log.debug("Password and confirmation password do not match.");
-      log.info("Failed to reset password for user: {}", userEmail);
-      throw new InvalidRequestException("Password and confirmation password do not match.");
-    }
-
     var user =
         userRepository
             .findByEmail(userEmail)
@@ -621,16 +607,16 @@ public class AuthServiceImpl implements AuthService {
 
     RefreshToken newRefreshToken = tokenService.createRefreshToken(user.getEmail());
 
-    Integer jwtExpirationMs = Integer.valueOf(environment.getProperty("app.jwtExpirationMs"));
-    Integer refreshTokenExpirationS =
-        Integer.valueOf(environment.getProperty("app.refreshTokenExpirationS"));
+    Long jwtExpirationS = Long.valueOf(environment.getProperty("app.jwtExpirationS"));
+    Long refreshTokenExpirationS =
+        Long.valueOf(environment.getProperty("app.refreshTokenExpirationS"));
 
     return AuthResponse.builder()
         .tokens(
             new TokensResponse(
                 newAccessToken,
                 newRefreshToken.getToken(),
-                jwtExpirationMs,
+                jwtExpirationS,
                 refreshTokenExpirationS))
         .build();
   }

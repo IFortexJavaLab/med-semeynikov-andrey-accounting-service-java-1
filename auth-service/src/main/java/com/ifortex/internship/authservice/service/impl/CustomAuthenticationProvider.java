@@ -6,9 +6,6 @@ import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.UserRepository;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -21,97 +18,102 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Slf4j
 @Component
 public class CustomAuthenticationProvider implements AuthenticationProvider {
 
-  private final UserRepository userRepository;
+    private final UserRepository userRepository;
 
-  private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
 
-  public CustomAuthenticationProvider(
-      UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
-    this.userRepository = userRepository;
-    this.passwordEncoder = passwordEncoder;
-  }
-
-  @Override
-  public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-    String email = (String) authentication.getPrincipal();
-    String password = (String) authentication.getCredentials();
-
-    User user = findUserByEmail(email);
-
-    boolean isSoftDeleted = user.isSoftDeleted();
-    if (isSoftDeleted) {
-      log.debug("Account of the user with ID: {} is soft deleted", user.getUserId());
-      throw new AuthorizationException("Invalid email or password");
+    public CustomAuthenticationProvider(
+            UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    TemporaryPassword temporaryPassword = user.getTemporaryPassword();
-    if (temporaryPassword != null) {
-      boolean isTemporaryPasswordExpired =
-          temporaryPassword.getExpirationDate().isBefore(LocalDateTime.now());
-      if (isTemporaryPasswordExpired) {
-        log.debug("Temporary password has expired for user: {}", email);
-        throw new AuthorizationException("Invalid email or password");
-      }
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        String email = (String) authentication.getPrincipal();
+        String password = (String) authentication.getCredentials();
 
-      if (verifyPassword(password, temporaryPassword.getTemporaryPasswordHash())) {
+        User user = findUserByEmail(email);
+
+        boolean isSoftDeleted = user.isSoftDeleted();
+        if (isSoftDeleted) {
+            log.debug("Account of the user with ID: {} is soft deleted", user.getUserId());
+            throw new AuthorizationException("Invalid email or password");
+        }
+
+        TemporaryPassword temporaryPassword = user.getTemporaryPassword();
+        if (temporaryPassword != null) {
+            boolean isTemporaryPasswordExpired =
+                    temporaryPassword.getExpirationDate().isBefore(LocalDateTime.now(Clock.systemUTC()));
+            if (isTemporaryPasswordExpired) {
+                log.debug("Temporary password has expired for user: {}", email);
+                throw new AuthorizationException("Invalid email or password");
+            }
+
+            if (verifyPassword(password, temporaryPassword.getTemporaryPasswordHash())) {
+                return createAuthenticationToken(user, password);
+            } else {
+                log.debug("Invalid temporary password for user: {}", email);
+                throw new AuthorizationException("Invalid email or password");
+            }
+        }
+
+        if (user.getPassword() == null) {
+            log.debug("No main password for user: {}", email);
+            throw new AuthorizationException("Invalid email or password");
+        }
+
+        if (!verifyPassword(password, user.getPassword())) {
+            throw new AuthorizationException("Invalid email or password");
+        }
+
+        boolean isBlocked =
+                user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now(Clock.systemUTC()));
+        if (isBlocked) {
+            log.debug("User with ID: {} is blocked", user.getUserId());
+            throw new UserBlockedException(
+                    String.format("Your account is blocked due to: %s", user.getBlockedUntil()));
+        }
+
         return createAuthenticationToken(user, password);
-      } else {
-        log.debug("Invalid temporary password for user: {}", email);
-        throw new AuthorizationException("Invalid email or password");
-      }
     }
 
-    if (user.getPassword() == null) {
-      log.debug("No main password for user: {}", email);
-      throw new AuthorizationException("Invalid email or password");
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
     }
 
-    if (!verifyPassword(password, user.getPassword())) {
-      throw new AuthorizationException("Invalid email or password");
+    private User findUserByEmail(String email) {
+        return userRepository
+                .findByEmail(email)
+                .orElseThrow(
+                        () -> {
+                            log.debug("User with email: {} not found", email);
+                            return new UsernameNotFoundException("User not found");
+                        });
     }
 
-    boolean isBlocked =
-        user.getBlockedUntil() != null && user.getBlockedUntil().isAfter(LocalDateTime.now());
-    if (isBlocked) {
-      log.debug("User with ID: {} is blocked", user.getUserId());
-      throw new UserBlockedException(
-          String.format("Your account is blocked due to: %s", user.getBlockedUntil()));
+    private boolean verifyPassword(String inputPassword, String storedPasswordHash) {
+        return passwordEncoder.matches(inputPassword, storedPasswordHash);
     }
 
-    return createAuthenticationToken(user, password);
-  }
+    private Authentication createAuthenticationToken(User user, String password) {
+        List<GrantedAuthority> authorities =
+                user.getRoles().isEmpty()
+                        ? List.of(new SimpleGrantedAuthority(UserRole.ROLE_USER.name()))
+                        : user.getRoles().stream()
+                        .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                        .collect(Collectors.toList());
 
-  @Override
-  public boolean supports(Class<?> authentication) {
-    return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
-  }
-
-  private User findUserByEmail(String email) {
-    return userRepository
-        .findByEmail(email)
-        .orElseThrow(
-            () -> {
-              log.debug("User with email: {} not found", email);
-              return new UsernameNotFoundException("User not found");
-            });
-  }
-
-  private boolean verifyPassword(String inputPassword, String storedPasswordHash) {
-    return passwordEncoder.matches(inputPassword, storedPasswordHash);
-  }
-
-  private Authentication createAuthenticationToken(User user, String password) {
-    List<GrantedAuthority> authorities =
-        user.getRoles().isEmpty()
-            ? List.of(new SimpleGrantedAuthority(UserRole.ROLE_USER.name()))
-            : user.getRoles().stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
-                .collect(Collectors.toList());
-
-    return new UsernamePasswordAuthenticationToken(user, password, authorities);
-  }
+        return new UsernamePasswordAuthenticationToken(user, password, authorities);
+    }
 }

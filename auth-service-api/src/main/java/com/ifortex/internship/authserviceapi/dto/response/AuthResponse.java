@@ -14,5 +14,4 @@ public class AuthResponse {
   private String email;
   private String message;
   private String link;
-  // todo add expiration time for tokens
 }

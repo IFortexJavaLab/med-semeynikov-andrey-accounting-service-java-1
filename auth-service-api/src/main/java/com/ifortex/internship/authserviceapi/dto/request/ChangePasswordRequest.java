@@ -1,5 +1,6 @@
 package com.ifortex.internship.authserviceapi.dto.request;
 
+import com.ifortex.internship.authserviceapi.validation.PasswordMatch;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
+@PasswordMatch(passwordField = "newPassword")
 public class ChangePasswordRequest {
 
   @NotBlank private String currentPassword;

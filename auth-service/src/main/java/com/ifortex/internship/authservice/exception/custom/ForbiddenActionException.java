@@ -4,9 +4,9 @@ import com.ifortex.internship.authservice.exception.AuthServiceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-public class RegistrationFailedException extends AuthServiceException {
-    public RegistrationFailedException(String message) {
-        super(message);
-    }
+@ResponseStatus(HttpStatus.FORBIDDEN)
+public class ForbiddenActionException extends AuthServiceException {
+  public ForbiddenActionException(String message) {
+    super(message);
+  }
 }

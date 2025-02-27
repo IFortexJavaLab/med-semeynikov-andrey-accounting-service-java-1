@@ -8,10 +8,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Optional;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,83 +17,88 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Optional;
+
 @Slf4j
 @RequiredArgsConstructor
 public class AuthTokenFilter extends OncePerRequestFilter {
 
-  private final TokenService tokenService;
+    private final TokenService tokenService;
 
-  @Override
-  protected void doFilterInternal(
-      @NonNull HttpServletRequest request,
-      @NonNull HttpServletResponse response,
-      @NonNull FilterChain filterChain)
-      throws ServletException, IOException {
-    try {
+    @Override
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain)
+            throws ServletException, IOException {
+        try {
 
-      log.debug("AuthTokenFilter started for: {}", request.getRequestURI());
+            log.debug("AuthTokenFilter started for: {}", request.getRequestURI());
 
-      String jwt = parseJwt(request);
+            String jwt = parseJwt(request);
 
-      if (jwt == null) {
+            if (jwt == null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            if (tokenService.isValid(jwt)) {
+                authenticateUser(jwt, request);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            throw new AuthorizationException("Invalid JWT token");
+
+        } catch (AuthServiceException e) {
+            log.debug("Authentication service exception message: {}", e.getMessage());
+            response.sendError(
+                    HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        } catch (Exception e) {
+            log.debug("Cannot set user authentication: {}", e.getMessage());
+        }
         filterChain.doFilter(request, response);
-        return;
-      }
-
-      if (tokenService.isValid(jwt)) {
-        authenticateUser(jwt, request);
-        filterChain.doFilter(request, response);
-        return;
-      }
-
-      throw new AuthorizationException("Invalid JWT token");
-
-    } catch (AuthServiceException e) {
-      log.debug("Authentication service exception message: {}", e.getMessage());
-      response.sendError(
-          HttpServletResponse.SC_UNAUTHORIZED); // todo разделить на авторизацию и аутентификацию
-      return;
-    } catch (Exception e) {
-      log.debug("Cannot set user authentication: {}", e.getMessage());
     }
-    filterChain.doFilter(request, response);
-  }
 
-  private void authenticateUser(String jwt, HttpServletRequest request) {
+    private void authenticateUser(String jwt, HttpServletRequest request) {
 
-    log.debug("Authentication user started");
+        log.debug("Authentication user started");
 
-    String username = tokenService.getUsernameFromToken(jwt);
-    String userId = tokenService.getUserIdFromToken(jwt);
-    Boolean hasActiveSubscription = tokenService.hasActiveSubscriptionFromToken(jwt);
-    Optional<LocalDateTime> subscriptionEndDate = tokenService.getSubscriptionEndDateFromToken(jwt);
-    Collection<? extends GrantedAuthority> authorities = tokenService.getAuthorityFromToken(jwt);
+        String username = tokenService.getUsernameFromToken(jwt);
+        String userId = tokenService.getUserIdFromToken(jwt);
+        Boolean hasActiveSubscription = tokenService.hasActiveSubscriptionFromToken(jwt);
+        Optional<LocalDateTime> subscriptionEndDate = tokenService.getSubscriptionEndDateFromToken(jwt);
+        Collection<? extends GrantedAuthority> authorities = tokenService.getAuthorityFromToken(jwt);
 
-    UserDetailsImpl userDetails =
-        UserDetailsImpl.builder()
-            .email(username)
-            .userId(userId)
-            .hasActiveSubscription(hasActiveSubscription)
-            .authorities(authorities)
-            .build();
+        UserDetailsImpl userDetails =
+                UserDetailsImpl.builder()
+                        .email(username)
+                        .userId(userId)
+                        .hasActiveSubscription(hasActiveSubscription)
+                        .authorities(authorities)
+                        .build();
 
-    subscriptionEndDate.ifPresent(userDetails::setSubscriptionEndDate);
+        subscriptionEndDate.ifPresent(userDetails::setSubscriptionEndDate);
 
-    UsernamePasswordAuthenticationToken authentication =
-        new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);
 
-    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-    SecurityContextHolder.getContext().setAuthentication(authentication);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-    log.debug("Set authentication for user: {}", userDetails.getEmail());
-  }
+        log.debug("Set authentication for user: {}", userDetails.getEmail());
+    }
 
-  private String parseJwt(HttpServletRequest request) {
-    int BEARER_PREFIX_LENGTH = 7;
-    String headerAuth = request.getHeader("Authorization");
-    return headerAuth != null && headerAuth.startsWith("Bearer ")
-        ? headerAuth.substring(BEARER_PREFIX_LENGTH)
-        : null;
-  }
+    private String parseJwt(HttpServletRequest request) {
+        int BEARER_PREFIX_LENGTH = 7;
+        String headerAuth = request.getHeader("Authorization");
+        return headerAuth != null && headerAuth.startsWith("Bearer ")
+                ? headerAuth.substring(BEARER_PREFIX_LENGTH)
+                : null;
+    }
 }

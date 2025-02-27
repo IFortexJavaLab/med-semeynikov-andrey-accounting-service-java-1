@@ -1,8 +1,19 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.exception.custom.*;
+import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
+import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
+import com.ifortex.internship.authservice.exception.custom.EmailSendException;
+import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
+import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
+import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
-import com.ifortex.internship.authserviceapi.dto.request.*;
+import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
+import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
+import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
+import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
+import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
@@ -33,12 +44,12 @@ public interface AuthService {
   void registerUser(RegistrationRequest request);
 
   /**
-   * Creates a new user with the default user role.
+   * Creates a new client.
    *
-   * @param request the request containing the email of the user to be created
+   * @param request the request containing the email of the client to be created
    * @return a response containing a success message, temporary password, and its expiration time
    */
-  CreateUserResponse createUser(CreateUserRequest request);
+  CreateUserResponse createClient(CreateClientRequest request);
 
   /**
    * Authenticates a user based on the provided login credentials.
@@ -139,6 +150,7 @@ public interface AuthService {
    */
   List<String> getUserRolesFromAuthentication();
 
+  // feature move to other service
   /**
    * Retrieves a list of {@link AuthUserDto} based on provided filters.
    *
@@ -163,7 +175,7 @@ public interface AuthService {
    * @param userId the ID of the user whose password is to be reset
    * @return a response containing the newly generated temporary password
    * @throws EntityNotFoundException if the user with the given ID is not found
-   * @throws SuperAdminModificationException if a non-super admin attempts to modify a super admin's
+   * @throws ForbiddenActionException if a non-super admin attempts to modify a super admin's
    *     password
    */
   TemporaryPasswordResponse resetPasswordWithTemp(String userId);
@@ -190,7 +202,7 @@ public interface AuthService {
    *
    * @param request the request containing the email and admin role type
    * @return a response containing a success message, temporary password, and its expiration time
-   * @throws RegistrationFailedException if a non-super admin attempts to create a super admin
+   * @throws InternalAuthServiceException if a non-super admin attempts to create a super admin
    */
   CreateUserResponse createAdmin(CreateAdminRequest request);
 }

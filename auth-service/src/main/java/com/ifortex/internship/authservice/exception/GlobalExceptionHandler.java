@@ -2,8 +2,6 @@ package com.ifortex.internship.authservice.exception;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +14,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+  private static final String MESSAGE = "message";
 
   @ExceptionHandler(AuthServiceException.class)
   public ResponseEntity<?> handleAuthServiceExceptions(AuthServiceException ex) {
@@ -28,7 +31,7 @@ public class GlobalExceptionHandler {
         statusAnnotation != null ? statusAnnotation.value() : HttpStatus.INTERNAL_SERVER_ERROR;
 
     Map<String, String> responseBody = new HashMap<>();
-    responseBody.put("message", ex.getMessage());
+    responseBody.put(MESSAGE, ex.getMessage());
 
     return ResponseEntity.status(status).body(responseBody);
   }
@@ -40,7 +43,7 @@ public class GlobalExceptionHandler {
     log.debug("UsernameNotFoundException occurred: {}", ex.getMessage());
     log.info("Login attempt failed: invalid email provided.");
     Map<String, String> responseBody = new HashMap<>();
-    responseBody.put("message", "Invalid email or password");
+    responseBody.put(MESSAGE, "Invalid email or password");
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(responseBody);
   }
 
@@ -49,7 +52,7 @@ public class GlobalExceptionHandler {
     log.debug("BadCredentialsException occurred: {}", ex.getMessage());
     log.info("Login attempt failed: invalid email or password provided.");
     Map<String, String> responseBody = new HashMap<>();
-    responseBody.put("message", "Invalid email or password");
+    responseBody.put(MESSAGE, "Invalid email or password");
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(responseBody);
   }
 
@@ -86,7 +89,7 @@ public class GlobalExceptionHandler {
   public ResponseEntity<Map<String, String>> handleBadCredentialsException(
       AuthorizationDeniedException ex) {
     Map<String, String> responseBody = new HashMap<>();
-    responseBody.put("message", "Access denied");
+    responseBody.put(MESSAGE, "Access denied");
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(responseBody);
   }
 

@@ -7,33 +7,32 @@ import com.ifortex.internship.authservice.exception.custom.EntityNotFoundExcepti
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authservice.filter.CustomAccessDeniedHandler;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.model.constant.UserRole;
-import com.ifortex.internship.authservice.model.mapper.UserMapper;
 import com.ifortex.internship.authservice.repository.UserRepository;
-import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.RedisService;
-import com.ifortex.internship.authservice.service.UserService;
 import com.ifortex.internship.authservice.stripe.service.StripeService;
+import com.ifortex.internship.authservice.util.UserMapper;
 import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authserviceapi.dto.request.TwoFactorAuthRequest;
 import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
+import com.ifortex.internship.authserviceapi.dto.request.UpdateUserDto;
+import com.ifortex.internship.authserviceapi.dto.request.UserSearchRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
 import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
-import com.ifortex.internship.usermanagementapi.UserManagementApi;
-import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
-import com.ifortex.internship.usermanagementapi.dto.request.DeleteUserRequest;
-import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
+import com.ifortex.internship.authserviceapi.dto.response.ClientDto;
+import com.ifortex.internship.authserviceapi.dto.response.UserListViewDto;
 import com.stripe.exception.StripeException;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -41,49 +40,36 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl implements UserService {
+public class UserServiceImpl {
 
     private final StripeService stripeService;
-    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Value("${app.otp.emailExpirationMinutes}")
     private int expirationMinutes;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthService authService;
-    private final UserMapper userMapper;
+    private final AuthServiceImpl authService;
     private final RedisService redisService;
     private final EmailService emailService;
     private final Environment environment;
     private final CustomAuthenticationProvider authenticationProvider;
-    private final UserManagementApi userManagementApi;
+    private final UserMapper userMapper;
 
     public AuthUserDto getUserByUserId(String userId) {
         log.debug("Getting user by userId: {}", userId);
 
         var user = findUserByUserId(userId);
-        return userMapper.toDto(user);
+        return userMapper.userToAuthUserDto(user);
     }
 
     public AuthUserDto getUser() {
         String userId = authService.getUserIdFromAuthentication();
         return getUserByUserId(userId);
-    }
-
-    public List<AuthUserDto> getAllUsers() {
-
-        log.debug("Getting all users");
-
-        List<User> users = userRepository.findAll();
-        List<AuthUserDto> authUserDtoList = users.stream().map(userMapper::toDto).toList();
-
-        return authUserDtoList;
     }
 
     @Transactional
@@ -95,14 +81,14 @@ public class UserServiceImpl implements UserService {
 
         try {
             authenticationProvider.authenticate(
-                    new UsernamePasswordAuthenticationToken(userEmail, request.getCurrentPassword()));
+                new UsernamePasswordAuthenticationToken(userEmail, request.getCurrentPassword()));
         } catch (AuthorizationException ex) {
             throw new InvalidRequestException("Current password is incorrect");
         }
 
         if (request.getCurrentPassword().equals(request.getNewPassword())) {
             log.debug(
-                    "Current password and new password are equal for user with email: {}", user.getEmail());
+                "Current password and new password are equal for user with email: {}", user.getEmail());
             throw new InvalidRequestException("Current password and new password are equal");
         }
 
@@ -154,17 +140,17 @@ public class UserServiceImpl implements UserService {
             emailService.sendVerificationEmail(currentEmail, "Email change", otp);
         } catch (MessagingException e) {
             log.error(
-                    "Error during sending verification email for: {}. There details: {}",
-                    currentEmail,
-                    e.getMessage());
+                "Error during sending verification email for: {}. There details: {}",
+                currentEmail,
+                e.getMessage());
             throw new EmailSendException("Failed to send verification email");
         }
 
         String changeEmailLink = environment.getProperty("app.link.changeEmail");
         String message =
-                String.format(
-                        "An email with a change email code has been sent to your email: %s, please follow this link:",
-                        newEmail);
+            String.format(
+                "An email with a change email code has been sent to your email: %s, please follow this link:",
+                newEmail);
 
         log.info("An email with an otp has been sent to email: {} for user with ID: {}", newEmail, userId);
         return new ChangeEmailResponse(message, changeEmailLink, expirationMinutes);
@@ -186,13 +172,13 @@ public class UserServiceImpl implements UserService {
         }
 
         var user =
-                userRepository
-                        .findByEmail(currentEmail)
-                        .orElseThrow(
-                                () -> {
-                                    log.error("User with email: {} not found", currentEmail);
-                                    return new InvalidRequestException("Failed to verify otp. Please try again.");
-                                });
+            userRepository
+                .findByEmail(currentEmail)
+                .orElseThrow(
+                    () -> {
+                        log.error("User with email: {} not found", currentEmail);
+                        return new InvalidRequestException("Failed to verify otp. Please try again.");
+                    });
 
         user.setEmail(newEmail);
         user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
@@ -206,57 +192,6 @@ public class UserServiceImpl implements UserService {
 
         log.info("Email was changed successfully for user with ID {}", userId);
         return new ChangeEmailResponse(message, loginLink);
-    }
-
-    @Transactional
-    public AuthUserDto changeTwoFactorAuth(TwoFactorAuthRequest request) {
-
-        String email = authService.getUserEmailFromAuthentication();
-
-        log.debug("Changing 2FA for user: {}", email);
-
-        User savedUser = findUserByEmail(email);
-
-        Boolean newTwoFactorState = request.getIsTwoFactorEnabled();
-        if (newTwoFactorState == null) {
-            return userMapper.toDto(savedUser);
-        }
-
-        if (newTwoFactorState == savedUser.isTwoFactorEnabled()) {
-            log.debug("2FA state is the same for user: {}", email);
-            return userMapper.toDto(savedUser);
-        }
-
-        log.info("Updating 2FA state for user: {}", email);
-        savedUser.setTwoFactorEnabled(newTwoFactorState);
-        savedUser.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
-        userRepository.save(savedUser);
-
-        return userMapper.toDto(savedUser);
-    }
-
-    @Transactional
-    public AuthUserDto changeTwoFactorAuthByAdmin(String userId, TwoFactorAuthRequest request) {
-        log.debug("Changing 2FA for user with id: {} by admin", userId);
-
-        User savedUser = findUserByUserId(userId);
-
-        Boolean newTwoFactorState = request.getIsTwoFactorEnabled();
-        if (newTwoFactorState == null) {
-            return userMapper.toDto(savedUser);
-        }
-
-        if (newTwoFactorState == savedUser.isTwoFactorEnabled()) {
-            log.debug("2FA state is the same for user with id: {}", userId);
-            return userMapper.toDto(savedUser);
-        }
-
-        log.info("Updating 2FA state for user with id: {}", userId);
-        savedUser.setTwoFactorEnabled(newTwoFactorState);
-        savedUser.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
-        userRepository.save(savedUser);
-
-        return userMapper.toDto(savedUser);
     }
 
     @Transactional
@@ -312,16 +247,6 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(user);
 
-        try {
-            userManagementApi.saveUser(
-                    new AuthUserForUserManagementDto(user.getUserId(), user.isSoftDeleted()));
-        } catch (CustomFeignException e) {
-            log.debug(
-                    "Error occurred during call to the user management service. Details: {}", e.getMessage());
-            throw new InternalAuthServiceException(
-                    "Error occurred while deleting. Please try again later");
-        }
-
         log.debug("User user with ID: {} deleted successfully with soft delete", userId);
     }
 
@@ -335,38 +260,28 @@ public class UserServiceImpl implements UserService {
         userRepository.delete(user);
 
         try {
-            userManagementApi.deleteUser(new DeleteUserRequest(user.getUserId()));
             stripeService.deleteUser(user);
-        } catch (CustomFeignException e) {
-            log.debug(
-                    "Error occurred during call to the user management service. Details: {}", e.getMessage());
-            throw new InternalAuthServiceException(
-                    "Error occurred while deleting. Please try again later");
         } catch (StripeException e) {
             log.error(
-                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                    e.getMessage(), e.getCode(), e);
+                "Stripe API call failed: {}. Error code: {}. StackTrace: ",
+                e.getMessage(), e.getCode(), e);
             throw new InternalAuthServiceException(
-                    String.format(
-                            "Error occurred while deleting stripe customer account with user ID: %s and Stripe customer ID: %s",
-                            user.getUserId(), user.getStripeCustomerId()));
+                String.format(
+                    "Error occurred while deleting stripe customer account with user ID: %s and Stripe customer ID: %s",
+                    user.getUserId(), user.getStripeCustomerId()));
         }
 
         log.debug("User user with ID: {} deleted successfully with hard delete", userId);
-
-        // todo how to rollback changes when request two different services through rest?
     }
 
     /**
      * Validates if the provided action is being performed on the user itself.
      *
      * <p>This method checks if the user performing the action is trying to modify their own account.
-     * If so, a {@link ForbiddenActionException} is thrown with an appropriate message indicating that
-     * performing the action on oneself is not allowed.
-     *
-     * @param user   The user being modified or acted upon.
-     * @param action The action being performed, such as "block", "unblock", etc. Used for error
-     *               message.
+     * If so, a {@link ForbiddenActionException} is thrown with an appropriate message indicating that performing the action on oneself is not
+     * allowed.
+     * @param user The user being modified or acted upon.
+     * @param action The action being performed, such as "block", "unblock", etc. Used for error message.
      * @throws ForbiddenActionException If the user is trying to modify their own account.
      */
     private void validateSelfModification(User user, String action) {
@@ -377,23 +292,15 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    /**
-     * Validates if the current user has permission to modify a super admin.
-     *
-     * <p>Ensures that only a super admin can edit another super admin. If a regular admin attempts to
-     * modify a super admin, an exception is thrown.
-     *
-     * @param user The user being modified.
-     * @throws ForbiddenActionException if a non-super admin attempts to modify a super admin.
-     */
+    //todo refactor this method after entity audit
     private void validateSuperAdminModificationPermission(User user) {
         boolean isEditedUserSuperAdmin =
-                user.getRoles().stream().anyMatch(role -> role.getName().equals(UserRole.ROLE_SUPER_ADMIN));
+            user.getRoles().stream().anyMatch(role -> role.getName().equals(UserRole.ROLE_SUPER_ADMIN));
 
         if (isEditedUserSuperAdmin) {
             boolean isEditorSuperAdmin =
-                    authService.getUserRolesFromAuthentication().stream()
-                            .anyMatch(role -> role.equals(UserRole.ROLE_SUPER_ADMIN.name()));
+                authService.getUserRolesFromAuthentication().stream()
+                    .anyMatch(role -> role.equals(UserRole.ROLE_SUPER_ADMIN.name()));
             if (!isEditorSuperAdmin) {
                 log.debug("Attempt to block user with ROLE_SUPER_ADMIN with ROLE_ADMIN");
                 throw new ForbiddenActionException("You can't edit user with ROLE_SUPER_ADMIN");
@@ -403,37 +310,124 @@ public class UserServiceImpl implements UserService {
 
     /**
      * Finds a user by their unique identifier (userId).
-     *
      * @param userId the unique identifier of the user
      * @return the {@link User} corresponding to the provided ID
      * @throws EntityNotFoundException if a user with the specified ID is not found
      */
     private User findUserByUserId(String userId) {
         return userRepository
-                .findByUserId(userId)
-                .orElseThrow(
-                        () -> {
-                            log.debug("User with ID: {} not found", userId);
-                            return new EntityNotFoundException(
-                                    String.format("User with ID: %s not found", userId));
-                        });
+            .findByUserId(userId)
+            .orElseThrow(
+                () -> {
+                    log.debug("User with ID: {} not found", userId);
+                    return new EntityNotFoundException(
+                        String.format("User with ID: %s not found", userId));
+                });
     }
 
     /**
      * Finds a user by their email address.
-     *
      * @param email the email address of the user
      * @return the User corresponding to the provided email
      * @throws EntityNotFoundException if a user with the specified email is not found
      */
     private User findUserByEmail(String email) {
         return userRepository
-                .findByEmail(email)
-                .orElseThrow(
-                        () -> {
-                            log.debug("User with email: {} not found", email);
-                            return new EntityNotFoundException(
-                                    String.format("User with email: %s not found", email));
-                        });
+            .findByEmail(email)
+            .orElseThrow(
+                () -> {
+                    log.debug("User with email: {} not found", email);
+                    return new EntityNotFoundException(
+                        String.format("User with email: %s not found", email));
+                });
+    }
+
+    public ClientDto getUserProfileByAuthentication() {
+
+        String userId = authService.getUserIdFromAuthentication();
+        log.info("Getting user profile for user with ID: {}", userId);
+
+        var user = findUserByUserId(userId);
+        var clientDto = userMapper.userToClientDto(user);
+
+        log.info("Successfully fetched user profile for ID: {}", userId);
+
+        return clientDto;
+    }
+
+    @Transactional
+    public ClientDto updateUserByAuthentication(UpdateUserDto updateUserDto) {
+
+        String userId = authService.getUserIdFromAuthentication();
+        log.info("Updating user with ID: {}", userId);
+
+        var user = findUserByUserId(userId);
+        userMapper.updateUserFromDto(updateUserDto, user);
+
+        user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+        userRepository.save(user);
+        log.debug("User with ID: {} successfully updated in database", userId);
+
+        log.info("Update process completed for user with ID: {}", userId);
+
+        return userMapper.userToClientDto(user);
+    }
+
+    @Transactional
+    public ClientDto updateUserByAdmin(String userId, UpdateUserDto updateUserDto) {
+
+        var adminId = authService.getUserIdFromAuthentication();
+
+        log.debug("Updating user with ID: {} by admin with ID: {}", userId, adminId);
+        User user = findUserByUserId(userId);
+
+        //todo add check permission to edit target user
+
+        userMapper.updateUserFromDto(updateUserDto, user);
+
+        user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+        user = userRepository.save(user);
+        log.debug("User with ID: {} saved to db", userId);
+
+        log.info("User with ID: {} updated successfully", userId);
+
+        return userMapper.userToClientDto(user);
+    }
+
+    public ClientDto getUserProfileById(String userId) {
+
+        var adminId = authService.getUserIdFromAuthentication();
+        log.info("Getting user profile for user with ID: {} by Admin with ID: {}", userId, adminId);
+
+        var user = findUserByUserId(userId);
+        log.info("Successfully retrieved user profile for user with ID: {}", userId);
+        return userMapper.userToClientDto(user);
+    }
+
+    public Page<UserListViewDto> searchUsers(UserSearchRequest request, int page, int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        log.info("Searching users with filters: firstName={}, lastName={}, phone={}, email={}, roles={}, status={}, page={}, size={}",
+            request.getFirstName(), request.getLastName(), request.getPhone(),
+            request.getEmail(), request.getRoles(), request.getStatus(), page, size);
+
+        Page<User> userManagementUsers =
+            userRepository.findByFilters(
+                request.getFirstName(),
+                request.getLastName(),
+                request.getPhone(),
+                request.getEmail(),
+                request.getRoles(),
+                request.getStatus(),
+                pageable);
+
+        Page<UserListViewDto> userListViewDto = userManagementUsers.map(userMapper::userToUserListViewDto);
+
+        log.info("Found {} users (total pages: {})",
+            userManagementUsers.getTotalElements(),
+            userManagementUsers.getTotalPages());
+
+        return userListViewDto;
     }
 }

@@ -4,7 +4,7 @@ import com.ifortex.internship.authservice.exception.custom.EntityNotFoundExcepti
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.repository.UserRepository;
-import com.ifortex.internship.authservice.service.AuthService;
+import com.ifortex.internship.authservice.service.impl.AuthServiceImpl;
 import com.ifortex.internship.authservice.stripe.dto.request.PurchaseSubscriptionRequest;
 import com.ifortex.internship.authservice.stripe.dto.response.PlanDto;
 import com.ifortex.internship.authservice.stripe.dto.response.PurchaseSubscriptionResponse;
@@ -41,9 +41,10 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class StripeService {
+    private static final String LOG_STRIPE_FAILED = "Stripe API call failed: {}. Error code: {}. StackTrace: ";
 
     private final UserRepository userRepository;
-    private final AuthService authService;
+    private final AuthServiceImpl authService;
     private final SubscriptionRepository subscriptionRepository;
 
     @Value("${app.stripe.api.key}")
@@ -58,7 +59,7 @@ public class StripeService {
     private static final int CENTS_IN_DOLLAR = 100;
 
     @PostConstruct
-    public void init() {
+    public static void init() {
         Stripe.apiKey = stripeApiKey;
     }
 
@@ -72,11 +73,9 @@ public class StripeService {
         try {
             prices = Price.list(params);
         } catch (StripeException e) {
-            log.error(
-                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                    e.getMessage(), e.getCode(), e);
+            log.error(LOG_STRIPE_FAILED, e.getMessage(), e.getCode(), e);
             throw new StripeServiceException(
-                    "Error occurred while getting available plans. Please try again later");
+                "Error occurred while getting available plans. Please try again later");
         }
 
         for (Price price : prices.getData()) {
@@ -84,13 +83,13 @@ public class StripeService {
 
                 Long amountInDollars = price.getUnitAmount() / CENTS_IN_DOLLAR;
                 PlanDto plan =
-                        new PlanDto()
-                                .setId(price.getId())
-                                .setProductId(price.getProduct())
-                                .setAmount(amountInDollars)
-                                .setCurrency(price.getCurrency().toUpperCase())
-                                .setInterval(price.getRecurring().getInterval())
-                                .setIntervalCount(price.getRecurring().getIntervalCount());
+                    new PlanDto()
+                        .setId(price.getId())
+                        .setProductId(price.getProduct())
+                        .setAmount(amountInDollars)
+                        .setCurrency(price.getCurrency().toUpperCase())
+                        .setInterval(price.getRecurring().getInterval())
+                        .setIntervalCount(price.getRecurring().getIntervalCount());
                 planList.add(plan);
             }
         }
@@ -98,7 +97,7 @@ public class StripeService {
     }
 
     public List<com.stripe.model.Subscription> fetchAllSubscriptionsFromStripe()
-            throws StripeException {
+        throws StripeException {
 
         log.debug("Fetching all subscriptions from Stripe");
         List<com.stripe.model.Subscription> allSubscriptions = new ArrayList<>();
@@ -106,15 +105,17 @@ public class StripeService {
 
         do {
             SubscriptionListParams.Builder params =
-                    SubscriptionListParams.builder()
-                            .setLimit(100L)
-                            .setStatus(SubscriptionListParams.Status.ALL);
+                SubscriptionListParams.builder()
+                    .setLimit(100L)
+                    .setStatus(SubscriptionListParams.Status.ALL);
             if (lastSubscriptionId != null) {
                 params.setStartingAfter(lastSubscriptionId);
             }
             List<com.stripe.model.Subscription> subscriptions =
-                    com.stripe.model.Subscription.list(params.build()).getData();
-            if (subscriptions.isEmpty()) break;
+                com.stripe.model.Subscription.list(params.build()).getData();
+            if (subscriptions.isEmpty()) {
+                break;
+            }
 
             allSubscriptions.addAll(subscriptions);
             lastSubscriptionId = subscriptions.getLast().getId();
@@ -125,71 +126,69 @@ public class StripeService {
     }
 
     public PurchaseSubscriptionResponse createSubscriptionCheckoutSession(
-            PurchaseSubscriptionRequest request) {
+        PurchaseSubscriptionRequest request) {
 
         String userEmail = authService.getUserEmailFromAuthentication();
 
         User user =
-                userRepository
-                        .findByEmail(userEmail)
-                        .orElseThrow(
-                                () -> {
-                                    log.debug("User with email: {} not found", userEmail);
-                                    return new EntityNotFoundException(
-                                            String.format("User with email: %s not found", userEmail));
-                                });
+            userRepository
+                .findByEmail(userEmail)
+                .orElseThrow(
+                    () -> {
+                        log.debug("User with email: {} not found", userEmail);
+                        return new EntityNotFoundException(
+                            String.format("User with email: %s not found", userEmail));
+                    });
 
         boolean hasActiveSubscription =
-                user.getStripeSubscriptions() != null
-                        && user.getStripeSubscriptions().stream()
-                        .anyMatch(subscription -> subscription.getStatus() == SubscriptionStatus.ACTIVE);
+            user.getStripeSubscriptions() != null
+            && user.getStripeSubscriptions().stream()
+                .anyMatch(subscription -> subscription.getStatus() == SubscriptionStatus.ACTIVE);
 
         if (hasActiveSubscription) {
             log.debug(
-                    "User with ID: {} attempt to purchase another subscription while an active subscription already exists.",
-                    user.getUserId());
+                "User with ID: {} attempt to purchase another subscription while an active subscription already exists.",
+                user.getUserId());
             throw new ActiveSubscriptionExistsException("You already have active subscription");
         }
 
         boolean isNotStripeCustomer =
-                user.getStripeCustomerId() == null || user.getStripeCustomerId().isEmpty();
+            user.getStripeCustomerId() == null || user.getStripeCustomerId().isEmpty();
         if (isNotStripeCustomer) {
             CustomerCreateParams customerParams =
-                    CustomerCreateParams.builder().setEmail(userEmail).build();
+                CustomerCreateParams.builder().setEmail(userEmail).build();
             Customer customer;
             try {
                 customer = Customer.create(customerParams);
             } catch (StripeException e) {
-                log.error(
-                        "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                        e.getMessage(), e.getCode(), e);
+                log.error(LOG_STRIPE_FAILED, e.getMessage(), e.getCode(), e);
                 throw new StripeServiceException(
-                        "Error occurred while processing your payment. Please try again later");
+                    "Error occurred while processing your payment. Please try again later");
             }
             user.setStripeCustomerId(customer.getId());
             user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
             userRepository.save(user);
             log.debug(
-                    "Generated and saved StripeCustomerId: {} for user with ID: {}",
-                    customer.getId(),
-                    user.getUserId());
+                "Generated and saved StripeCustomerId: {} for user with ID: {}",
+                customer.getId(),
+                user.getUserId());
         }
 
         SessionCreateParams.LineItem lineItem =
-                SessionCreateParams.LineItem.builder()
-                        .setPrice(request.getPriceId())
-                        .setQuantity(1L)
-                        .build();
+            SessionCreateParams.LineItem.builder()
+                .setPrice(request.getPriceId())
+                .setQuantity(1L)
+                .build();
 
         SessionCreateParams params =
-                SessionCreateParams.builder()
-                        .setCustomer(user.getStripeCustomerId())
-                        .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
-                        .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                        .setSuccessUrl(successLink)
-                        .setCancelUrl(cancelLink)
-                        .addLineItem(lineItem)
-                        .build();
+            SessionCreateParams.builder()
+                .setCustomer(user.getStripeCustomerId())
+                .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+                .setSuccessUrl(successLink)
+                .setCancelUrl(cancelLink)
+                .addLineItem(lineItem)
+                .build();
 
         Session session;
         try {
@@ -199,13 +198,9 @@ public class StripeService {
                 log.debug("Invalid subscription Price ID: {}", request.getPriceId());
                 throw new InvalidRequestException("Invalid subscription price ID: " + request.getPriceId());
             }
-            log.error(
-                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                    e.getMessage(),
-                    e.getCode(),
-                    e);
+            log.error(LOG_STRIPE_FAILED, e.getMessage(), e.getCode(), e);
             throw new StripeServiceException(
-                    "Error occurred while processing your payment. Please try again later");
+                "Error occurred while processing your payment. Please try again later");
         }
 
         PurchaseSubscriptionResponse response = new PurchaseSubscriptionResponse();
@@ -220,17 +215,17 @@ public class StripeService {
         String userEmail = authService.getUserEmailFromAuthentication();
 
         User user =
-                userRepository
-                        .findByEmail(userEmail)
-                        .orElseThrow(
-                                () -> {
-                                    log.debug("User with email: {} not found not found", userEmail);
-                                    return new EntityNotFoundException(
-                                            String.format("User with email %s not found", userEmail));
-                                });
+            userRepository
+                .findByEmail(userEmail)
+                .orElseThrow(
+                    () -> {
+                        log.debug("User with email: {} not found not found", userEmail);
+                        return new EntityNotFoundException(
+                            String.format("User with email %s not found", userEmail));
+                    });
 
         Optional<StripeSubscription> subscriptionOpt =
-                subscriptionRepository.findActiveSubscriptionByUserId(user.getId());
+            subscriptionRepository.findActiveSubscriptionByUserId(user.getId());
         if (subscriptionOpt.isEmpty()) {
             log.debug("No active subscription found for user with ID: {}", user.getUserId());
             throw new ActiveSubscriptionNotFoundException("You have no active subscriptions");
@@ -240,7 +235,7 @@ public class StripeService {
 
         try {
             com.stripe.model.Subscription resource =
-                    com.stripe.model.Subscription.retrieve(stripeSubscriptionId);
+                com.stripe.model.Subscription.retrieve(stripeSubscriptionId);
 
             SubscriptionCancelParams params = SubscriptionCancelParams.builder().build();
 
@@ -248,7 +243,7 @@ public class StripeService {
             log.info("Stripe subscription {} cancelled successfully.", stripeSubscriptionId);
         } catch (StripeException e) {
             log.error(
-                    "Error cancelling Stripe subscription: {}. Code: {}", e.getMessage(), e.getCode(), e);
+                "Error cancelling Stripe subscription: {}. Code: {}", e.getMessage(), e.getCode(), e);
             throw new StripeServiceException("Failed to cancel subscription");
         }
     }

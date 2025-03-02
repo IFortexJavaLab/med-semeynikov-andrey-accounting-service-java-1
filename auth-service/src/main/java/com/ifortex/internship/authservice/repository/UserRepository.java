@@ -19,6 +19,9 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
 
+    String BLOCKED = "BLOCKED";
+    String ACTIVE = "ACTIVE";
+
     Optional<User> findByEmail(String email);
 
     Optional<User> findByUserId(String userId);
@@ -63,9 +66,9 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
                 Predicate isBlocked = cb.greaterThan(blockedUntil, LocalDateTime.now());
                 Predicate isActive = cb.or(cb.isNull(blockedUntil), cb.lessThanOrEqualTo(blockedUntil, LocalDateTime.now()));
 
-                if ("BLOCKED".equalsIgnoreCase(status)) {
+                if (BLOCKED.equalsIgnoreCase(status)) {
                     return isBlocked;
-                } else if ("ACTIVE".equalsIgnoreCase(status)) {
+                } else if (ACTIVE.equalsIgnoreCase(status)) {
                     return isActive;
                 }
                 return null;

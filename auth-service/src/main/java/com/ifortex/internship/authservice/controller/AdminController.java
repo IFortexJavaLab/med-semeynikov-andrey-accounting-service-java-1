@@ -51,8 +51,9 @@ public class AdminController {
 
     @Operation(summary = "Update user", description = "Allows admins to update user information.")
     @PatchMapping("{userId}")
-    public ResponseEntity<ClientDto> updateUserByAdmin(
-        @PathVariable("userId") String userId, @RequestBody UpdateUserDto updateUserDto) {
+    public ResponseEntity<ClientDto> updateUser(
+        @PathVariable("userId") String userId,
+        @RequestBody UpdateUserDto updateUserDto) {
 
         log.info("Attempt to update user with ID: {}", userId);
         ClientDto updatedUser = userService.updateUserByAdmin(userId, updateUserDto);
@@ -73,13 +74,14 @@ public class AdminController {
         description = "Allows admins to search users with filters and pagination.")
     @PostMapping("/search")
     public ResponseEntity<List<UserListViewDto>> searchUsers(
+        @RequestBody UserSearchRequest request,
         @RequestParam(defaultValue = "0") @Min(value = 0, message = "Page can't be a negative number")
         int page,
         @RequestParam(defaultValue = "20")
         @Min(value = 1, message = "Size of the page can't be less than 1")
         @Max(value = 100, message = "Size of the page can't be more than 100")
-        int size,
-        @RequestBody UserSearchRequest request) {
+        int size
+    ) {
 
         log.info("Request to search with through users");
         Page<UserListViewDto> result = userService.searchUsers(request, page, size);

@@ -43,7 +43,7 @@ public class UserController {
     private final AuthServiceImpl authService;
 
     @Operation(summary = "Update user", description = "Allows updating user information.")
-    @PatchMapping()
+    @PatchMapping
     public ResponseEntity<ClientDto> updateUser(@RequestBody @Valid UpdateUserDto updateUserDto) {
         var updatedUser = userService.updateUserByAuthentication(updateUserDto);
         return ResponseEntity.ok().body(updatedUser);
@@ -54,8 +54,7 @@ public class UserController {
         description = "Retrieve detailed user information by authentication.")
     @GetMapping()
     public ResponseEntity<ClientDto> getUserByAuth() {
-        ClientDto userProfile = userService.getUserProfileByAuthentication();
-        return ResponseEntity.ok(userProfile);
+        return ResponseEntity.ok(userService.getUserProfileByAuthentication());
     }
 
     @Operation(summary = "Change password")

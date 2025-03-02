@@ -47,7 +47,7 @@ public class User {
     @Column(nullable = false)
     private String email;
 
-    @Column() private String password;
+    private String password;
 
     @OneToOne(
         mappedBy = "user",

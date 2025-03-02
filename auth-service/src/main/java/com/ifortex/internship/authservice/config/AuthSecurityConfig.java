@@ -39,33 +39,32 @@ public class AuthSecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(
-                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers(
-                                                "/api/v1/account/password/reset",
-                                                "/api/v1/account/password/reset-confirm").permitAll()
-                                        .requestMatchers("/api/v1/account/**").authenticated()
-                                        .requestMatchers("/api/v1/auth/logout").authenticated()
-                                        .requestMatchers("/api/v1/auth/**").permitAll()
-                                        .requestMatchers("/api/v1/auth-service/users/**").authenticated()
-                                        .requestMatchers("/api/v1/accounting/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
-                                        .requestMatchers("/api/v1/subscription/plans").permitAll()
-                                        .requestMatchers("/api/v1/subscription/webhooks").permitAll()
-                                        .requestMatchers("/api/v1/subscription/**").authenticated()
-                                        .requestMatchers("/swagger-ui/**", "/v3/api-docs*/**").permitAll()
-                                        .requestMatchers("/success.html", "/cancel.html").permitAll()
-                                        .anyRequest().authenticated())
-                .exceptionHandling(
-                        exception ->
-                                exception
-                                        .authenticationEntryPoint(unauthorizedHandler)
-                                        .accessDeniedHandler(accessDeniedHandler));
+            .sessionManagement(
+                session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(
+                auth ->
+                    auth.requestMatchers(
+                            "/api/v1/account/password/reset",
+                            "/api/v1/account/password/reset-confirm").permitAll()
+                        .requestMatchers("/api/v1/account/**").authenticated()
+                        .requestMatchers("/api/v1/auth/logout").authenticated()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth-service/users/**").authenticated()
+                        .requestMatchers("/api/v1/accounting/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers("/api/v1/subscription/plans").permitAll()
+                        .requestMatchers("/api/v1/subscription/webhooks").permitAll()
+                        .requestMatchers("/api/v1/subscription/**").authenticated()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs*/**").permitAll()
+                        .requestMatchers("/success.html", "/cancel.html").permitAll()
+                        .anyRequest().authenticated())
+            .exceptionHandling(
+                exception ->
+                    exception
+                        .authenticationEntryPoint(unauthorizedHandler)
+                        .accessDeniedHandler(accessDeniedHandler));
 
         http.authenticationProvider(authenticationProvider);
-        http.addFilterBefore(
-                authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -77,7 +76,7 @@ public class AuthSecurityConfig {
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig)
-            throws Exception {
+        throws Exception {
         return authConfig.getAuthenticationManager();
     }
 }

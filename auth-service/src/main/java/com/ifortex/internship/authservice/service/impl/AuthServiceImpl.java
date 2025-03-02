@@ -15,16 +15,13 @@ import com.ifortex.internship.authservice.model.User;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.model.constant.UserRole;
-import com.ifortex.internship.authservice.model.mapper.UserMapper;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
 import com.ifortex.internship.authservice.repository.RoleRepository;
 import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
 import com.ifortex.internship.authservice.repository.UserRepository;
-import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.RedisService;
 import com.ifortex.internship.authservice.service.TokenService;
 import com.ifortex.internship.authservice.stripe.exception.StripeServiceException;
-import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
@@ -36,9 +33,6 @@ import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
-import com.ifortex.internship.usermanagementapi.UserManagementApi;
-import com.ifortex.internship.usermanagementapi.dto.request.AuthUserForUserManagementDto;
-import com.ifortex.internship.usermanagementapi.exception.CustomFeignException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
 import com.stripe.param.CustomerCreateParams;
@@ -59,14 +53,25 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
-import java.util.function.Predicate;
 
+//todo split this class
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuthServiceImpl implements AuthService {
+public class AuthServiceImpl {
+
+    private static final String LOG_USER_NOT_FOUND = "User with email: {} not found";
+    private static final String LOG_REFRESH_TOKEN_DELETED = "Refresh token deleted successfully for user: {}";
+    private static final String LOG_EMAIL_ALREADY_REGISTERED = "Email: {} is already registered";
+    private static final String LOG_USER_SAVED = "User: {} saved to db successfully";
+
+    private static final String UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final String DIGITS = "0123456789";
+    private static final String SPECIAL_CHARACTERS = "@$!%*?&#";
+    private static final String ALL_ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&#";
 
     private final UserRepository userRepository;
     private final TokenService tokenService;
@@ -75,30 +80,16 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepository roleRepository;
     private final EmailService emailService;
     private final RedisService redisService;
-    private final UserManagementApi userManagementApi;
     private final CustomAuthenticationProvider authenticationProvider;
     private final TemporaryPasswordRepository passwordRepository;
     private final Environment environment;
-    private final UserMapper userMapper;
 
-    private static final String LOG_USER_NOT_FOUND = "User with email: {} not found";
-    private static final String LOG_REFRESH_TOKEN_DELETED = "Refresh token deleted successfully for user: {}";
-
-    private static final String LOG_EMAIL_ALREADY_REGISTERED = "Email: {} is already registered";
-
-    private static final String LOG_USER_SAVED = "User: {} saved to db successfully";
-    private static final String UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    private static final String DIGITS = "0123456789";
-    private static final String SPECIAL_CHARACTERS = "@$!%*?&#";
-    private static final String ALL_ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&#";
+    private final Random random = new Random();
 
     @Value("${app.otp.loginExpirationMinutes}")
     private int loginOtpExpirationMinutes;
-
     @Value("${app.tempPassword.expirationHours}")
     private int tempPasswordExpirationHours;
-
-    private final Random random = new Random();
 
     @Transactional
     public void registerUser(RegistrationRequest request) {
@@ -116,33 +107,24 @@ public class AuthServiceImpl implements AuthService {
         String hashedPassword = passwordEncoder.encode(request.getPassword());
 
         List<Role> roles =
-                roleRepository
-                        .findByName(UserRole.ROLE_USER)
-                        .map(List::of)
-                        .orElseGet(Collections::emptyList);
+            roleRepository
+                .findByName(UserRole.ROLE_USER)
+                .map(List::of)
+                .orElseGet(Collections::emptyList);
 
         User user =
-                new User()
-                        .setUserId(UUID.randomUUID().toString())
-                        .setEmail(userEmail)
-                        .setPassword(hashedPassword)
-                        .setRoles(roles)
-                        .setCreatedAt(LocalDateTime.now(Clock.systemUTC()))
-                        .setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+            new User()
+                .setUserId(UUID.randomUUID().toString())
+                .setEmail(userEmail)
+                .setPassword(hashedPassword)
+                .setRoles(roles)
+                .setCreatedAt(LocalDateTime.now(Clock.systemUTC()))
+                .setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
 
         registerUserInStripe(user);
 
         userRepository.save(user);
         log.debug(LOG_USER_SAVED, userEmail);
-
-        try {
-            userManagementApi.saveUser(new AuthUserForUserManagementDto(user.getUserId()));
-        } catch (CustomFeignException e) {
-            log.debug(
-                    "Error occurred during call to the user management service. Details: {}", e.getMessage());
-            throw new InternalAuthServiceException(
-                    "Error occurred while registration. Please try again later");
-        }
 
         log.info("User: {} register successfully", userEmail);
     }
@@ -158,113 +140,14 @@ public class AuthServiceImpl implements AuthService {
 
         List<String> currentRoles = getUserRolesFromAuthentication();
 
-        boolean isCreatedSuperAdmin = request.getIsSuper();
+        boolean isCreatedSuperAdmin = request.isSuper();
         boolean isCreatingSuperAdmin = currentRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
         if (isCreatedSuperAdmin && !isCreatingSuperAdmin) {
             throw new ForbiddenActionException("Only Super Admin can create another Admin.");
         }
 
-        UserRole role = request.getIsSuper() ? UserRole.ROLE_SUPER_ADMIN : UserRole.ROLE_ADMIN;
+        UserRole role = request.isSuper() ? UserRole.ROLE_SUPER_ADMIN : UserRole.ROLE_ADMIN;
         return createUserWithRole(request.getEmail(), role);
-    }
-
-    /**
-     * Creates a new user with the specified role.
-     *
-     * @param email the email of the user to be created
-     * @param role  the role to assign to the user
-     * @return a response containing a success message, temporary password, and its expiration time
-     * @throws EmailAlreadyRegistered       if the email is already registered
-     * @throws InternalAuthServiceException if the user role is not found or user creation fails
-     */
-    private CreateUserResponse createUserWithRole(String email, UserRole role) {
-        log.debug("Creating user: {}", email);
-        validateEmailNotRegistered(email);
-
-        Role userRole = getRoleForUserType(role, email);
-
-        String userId = UUID.randomUUID().toString();
-        String password = generateTempPassword();
-        String hashedPassword = passwordEncoder.encode(password);
-
-        User user =
-                new User()
-                        .setUserId(userId)
-                        .setEmail(email)
-                        .setRoles(Collections.singletonList(userRole))
-                        .setCreatedAt(LocalDateTime.now(Clock.systemUTC()))
-                        .setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
-
-        TemporaryPassword temporaryPassword =
-                new TemporaryPassword(
-                        user,
-                        hashedPassword,
-                        LocalDateTime.now(Clock.systemUTC()).plusHours(tempPasswordExpirationHours));
-
-        user.setTemporaryPassword(temporaryPassword);
-        userRepository.save(user);
-
-        log.debug(LOG_USER_SAVED, email);
-
-        registerUserInUserManagementService(user);
-
-        if (role.equals(UserRole.ROLE_USER)) {
-            registerUserInStripe(user);
-        }
-
-        log.info("User: {} created successfully", email);
-
-        String message = String.format("User: %s created successfully", user.getEmail());
-        return new CreateUserResponse(message, password, tempPasswordExpirationHours);
-    }
-
-    /**
-     * Validates that the given email is not already registered.
-     *
-     * @param email the email to check
-     * @throws EmailAlreadyRegistered if the email is already in use
-     */
-    private void validateEmailNotRegistered(String email) {
-        if (userRepository.findByEmail(email).isPresent()) {
-            log.debug(LOG_EMAIL_ALREADY_REGISTERED, email);
-            throw new EmailAlreadyRegistered("Email: " + email + " is already registered.");
-        }
-    }
-
-    /**
-     * Retrieves the role entity for the specified user role.
-     *
-     * @param role  the user role to retrieve
-     * @param email the email of the user being registered (used for logging)
-     * @return the corresponding Role entity
-     * @throws InternalAuthServiceException if the role is not found in the database
-     */
-    private Role getRoleForUserType(UserRole role, String email) {
-        return roleRepository
-                .findByName(role)
-                .orElseThrow(
-                        () -> {
-                            log.debug("User Role: {} not found", role);
-                            return new InternalAuthServiceException(
-                                    String.format("Failed to register user with email: %s", email));
-                        });
-    }
-
-    /**
-     * Registers the newly created user in the UserManagement services.
-     *
-     * @param user the user to be registered
-     * @throws InternalAuthServiceException if the external service call fails
-     */
-    private void registerUserInUserManagementService(User user) {
-        try {
-            userManagementApi.saveUser(new AuthUserForUserManagementDto(user.getUserId()));
-        } catch (CustomFeignException e) {
-            log.debug(
-                    "Error occurred during call to the user management service. Details: {}", e.getMessage());
-            throw new InternalAuthServiceException(
-                    String.format("Failed to register with email: %s. Try again later", user.getEmail()));
-        }
     }
 
     public AuthResponse authenticateUser(LoginRequest loginRequest) {
@@ -272,9 +155,9 @@ public class AuthServiceImpl implements AuthService {
         String userEmail = loginRequest.getEmail();
         log.debug("Authenticating user with email: {}", userEmail);
 
-        Authentication authentication =
-                authenticationProvider.authenticate(
-                        new UsernamePasswordAuthenticationToken(userEmail, loginRequest.getPassword()));
+        Authentication
+            authentication =
+            authenticationProvider.authenticate(new UsernamePasswordAuthenticationToken(userEmail, loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         User user = (User) authentication.getPrincipal();
@@ -293,20 +176,15 @@ public class AuthServiceImpl implements AuthService {
             try {
                 emailService.sendVerificationEmail(userEmail, "2FA Verification Code", otp);
             } catch (MessagingException e) {
-                log.error(
-                        "Error during sending 2FA verification email for: {}. StackTrace: {}",
-                        userEmail,
-                        e.getMessage());
-                throw new EmailSendException(
-                        String.format("Failed to send 2FA verification email to the: %s", userEmail));
+                log.error("Error during sending 2FA verification email for: {}. StackTrace: {}", userEmail, e.getMessage());
+                throw new EmailSendException(String.format("Failed to send 2FA verification email to the: %s", userEmail));
             }
 
             String verifyOtpLink = environment.getProperty("app.link.verifyOtpLogin");
-            String message =
-                    String.format(
-                            "Two-factor authentication is required to complete your login. A verification code has been sent "
-                                    + "to your email: %s. Please enter the code along with your email at the following link: ",
-                            userEmail);
+            String
+                message =
+                String.format("Two-factor authentication is required to complete your login. A verification code has been sent "
+                              + "to your email: %s. Please enter the code along with your email at the following link: ", userEmail);
             return AuthResponse.builder().message(message).link(verifyOtpLink).build();
         }
 
@@ -331,14 +209,10 @@ public class AuthServiceImpl implements AuthService {
 
         redisService.deleteOtp(redisKey);
 
-        var user =
-                userRepository
-                        .findByEmail(userEmail)
-                        .orElseThrow(
-                                () -> {
-                                    log.debug(LOG_USER_NOT_FOUND, userEmail);
-                                    return new AuthorizationException("Failed to verify otp. Please try again.");
-                                });
+        var user = userRepository.findByEmail(userEmail).orElseThrow(() -> {
+            log.debug(LOG_USER_NOT_FOUND, userEmail);
+            return new AuthorizationException("Failed to verify otp. Please try again.");
+        });
 
         return buildAuthResponse(user);
     }
@@ -352,9 +226,7 @@ public class AuthServiceImpl implements AuthService {
         log.debug(LOG_REFRESH_TOKEN_DELETED, userEmail);
 
         log.info("Logout successful for user: {}", userEmail);
-        return AuthResponse.builder()
-                .message(String.format("Logout successful for user %s", userEmail))
-                .build();
+        return AuthResponse.builder().message(String.format("Logout successful for user %s", userEmail)).build();
     }
 
     public SuccessResponse initiatePasswordReset(String email) {
@@ -376,19 +248,12 @@ public class AuthServiceImpl implements AuthService {
         try {
             emailService.sendVerificationEmail(email, "Password reset", otp);
         } catch (MessagingException e) {
-            log.error(
-                    "Error during sending verification email for: {}. There details: {}",
-                    email,
-                    e.getMessage());
-            throw new EmailSendException(
-                    String.format("Failed to send verification email to the: %s", email));
+            log.error("Error during sending verification email for: {}. There details: {}", email, e.getMessage());
+            throw new EmailSendException(String.format("Failed to send verification email to the: %s", email));
         }
 
         String resetPasswordLink = environment.getProperty("app.link.resetPasswordConfirm");
-        String message =
-                String.format(
-                        "An email with a password reset code has been sent to your email: %s, please follow this link: ",
-                        email);
+        String message = String.format("An email with a password reset code has been sent to your email: %s, please follow this link: ", email);
 
         return new SuccessResponse(message, resetPasswordLink);
     }
@@ -409,14 +274,10 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthorizationException("Invalid OTP provided. Please try again.");
         }
 
-        var user =
-                userRepository
-                        .findByEmail(userEmail)
-                        .orElseThrow(
-                                () -> {
-                                    log.debug(LOG_USER_NOT_FOUND, userEmail);
-                                    return new AuthorizationException("Failed to reset password. Please try again.");
-                                });
+        var user = userRepository.findByEmail(userEmail).orElseThrow(() -> {
+            log.debug(LOG_USER_NOT_FOUND, userEmail);
+            return new AuthorizationException("Failed to reset password. Please try again.");
+        });
 
         String newEncodedPassword = passwordEncoder.encode(request.getNewPassword());
         user.setPassword(newEncodedPassword);
@@ -453,17 +314,6 @@ public class AuthServiceImpl implements AuthService {
         return principle.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList();
     }
 
-    public List<AuthUserDto> searchUsers(
-            List<String> userIds, List<String> roles, String status, String email) {
-        List<User> users = userRepository.findByUserIdIn(userIds);
-
-        Predicate<User> userFilter =
-                filterByRoles(roles).and(filterByStatus(status)).and(filterByEmail(email));
-
-        //todo use MapStruct
-        return users.stream().filter(userFilter).map(userMapper::toDto).toList();
-    }
-
     @Transactional
     public TemporaryPasswordResponse resetPasswordWithTemp(String userId) {
         log.debug("Initiating password reset for user with ID: {}", userId);
@@ -471,15 +321,10 @@ public class AuthServiceImpl implements AuthService {
         List<String> currentUserRoles = getUserRolesFromAuthentication();
         boolean isCurrentUserSuperAdmin = currentUserRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
 
-        User user =
-                userRepository
-                        .findByUserId(userId)
-                        .orElseThrow(
-                                () -> {
-                                    log.debug("User with ID: {} not found", userId);
-                                    return new EntityNotFoundException(
-                                            String.format("User with ID: %s not found", userId));
-                                });
+        User user = userRepository.findByUserId(userId).orElseThrow(() -> {
+            log.debug("User with ID: {} not found", userId);
+            return new EntityNotFoundException(String.format("User with ID: %s not found", userId));
+        });
 
         checkSuperAdminModification(user, isCurrentUserSuperAdmin);
 
@@ -488,10 +333,10 @@ public class AuthServiceImpl implements AuthService {
         String tempPassword = generateTempPassword();
         String hashedPassword = passwordEncoder.encode(tempPassword);
         var temporaryPassword =
-                new TemporaryPassword(
-                        user,
-                        hashedPassword,
-                        LocalDateTime.now(Clock.systemUTC()).plusHours(tempPasswordExpirationHours));
+            new TemporaryPassword(
+                user,
+                hashedPassword,
+                LocalDateTime.now(Clock.systemUTC()).plusHours(tempPasswordExpirationHours));
 
         user.setPassword(null);
         user.setTemporaryPassword(temporaryPassword);
@@ -512,15 +357,10 @@ public class AuthServiceImpl implements AuthService {
         List<String> currentUserRoles = getUserRolesFromAuthentication();
         boolean isCurrentUserSuperAdmin = currentUserRoles.contains(UserRole.ROLE_SUPER_ADMIN.name());
 
-        User user =
-                userRepository
-                        .findByUserId(userId)
-                        .orElseThrow(
-                                () -> {
-                                    log.debug("User with ID: {} not found", userId);
-                                    return new EntityNotFoundException(
-                                            String.format("User with ID: %s not found", userId));
-                                });
+        User user = userRepository.findByUserId(userId).orElseThrow(() -> {
+            log.debug("User with ID: {} not found", userId);
+            return new EntityNotFoundException(String.format("User with ID: %s not found", userId));
+        });
 
         String userEmail = user.getEmail();
 
@@ -541,12 +381,8 @@ public class AuthServiceImpl implements AuthService {
         try {
             emailService.sendPasswordResetRequestEmail(userEmail, "Password reset", resetLink);
         } catch (MessagingException e) {
-            log.error(
-                    "Error during sending 2FA verification email for: {}. StackTrace: {}",
-                    userEmail,
-                    e.getMessage());
-            throw new EmailSendException(
-                    String.format("Failed to send Password reset request to the email: %s", userEmail));
+            log.error("Error during sending 2FA verification email for: {}. StackTrace: {}", userEmail, e.getMessage());
+            throw new EmailSendException(String.format("Failed to send Password reset request to the email: %s", userEmail));
         }
 
         String message = String.format("Password reset request email sent to: %s.", userEmail);
@@ -562,19 +398,8 @@ public class AuthServiceImpl implements AuthService {
         return (UserDetailsImpl) principle;
     }
 
-    /**
-     * Checks if the current user has permission to modify a user with the ROLE_SUPER_ADMIN role.
-     * Throws an exception if the current user is not a super admin and attempts to modify a super
-     * admin.
-     *
-     * @param user                    the user to be modified
-     * @param isCurrentUserSuperAdmin whether the current user is a super admin
-     * @throws ForbiddenActionException if the current user is not a super admin and tries to modify a
-     *                                  super admin
-     */
     private void checkSuperAdminModification(User user, boolean isCurrentUserSuperAdmin) {
-        boolean isEditedUserSuperAdmin =
-                user.getRoles().stream().anyMatch(role -> role.getName() == UserRole.ROLE_SUPER_ADMIN);
+        boolean isEditedUserSuperAdmin = user.getRoles().stream().anyMatch(role -> role.getName() == UserRole.ROLE_SUPER_ADMIN);
 
         if (isEditedUserSuperAdmin && !isCurrentUserSuperAdmin) {
             log.debug("Attempt to reset password for ROLE_SUPER_ADMIN with ROLE_ADMIN");
@@ -582,12 +407,6 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    /**
-     * Deletes the old temporary password for the specified user, if it exists. Sets the user's
-     * temporary password to null after deletion.
-     *
-     * @param user the user whose old temporary password will be deleted
-     */
     private void deleteOldTemporaryPassword(User user) {
         if (user.getTemporaryPassword() != null) {
             passwordRepository.delete(user.getTemporaryPassword());
@@ -597,15 +416,6 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    /**
-     * Constructs an {@link AuthResponse} containing authentication tokens for the specified user.
-     *
-     * <p>This method generates a new access token and refresh token for the user and packages them
-     * into an AuthResponse.
-     *
-     * @param user the user entity
-     * @return an AuthResponse containing access and refresh token
-     */
     private AuthResponse buildAuthResponse(User user) {
 
         String newAccessToken = tokenService.generateAccessToken(user);
@@ -613,88 +423,15 @@ public class AuthServiceImpl implements AuthService {
 
         RefreshToken newRefreshToken = tokenService.createRefreshToken(user.getEmail());
 
-        Long jwtExpirationS = Long.valueOf(environment.getProperty("app.jwtExpirationS"));
-        Long refreshTokenExpirationS =
-                Long.valueOf(environment.getProperty("app.refreshTokenExpirationS"));
+        Long jwtExpirationS = Long.valueOf(Objects.requireNonNull(environment.getProperty("app.jwtExpirationS")));
+        Long refreshTokenExpirationS = Long.valueOf(Objects.requireNonNull(environment.getProperty("app.refreshTokenExpirationS")));
 
-        return AuthResponse.builder()
-                .tokens(
-                        new TokensResponse(
-                                newAccessToken,
-                                newRefreshToken.getToken(),
-                                jwtExpirationS,
-                                refreshTokenExpirationS))
-                .build();
+        return AuthResponse.builder().tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS))
+            .build();
     }
 
-    /**
-     * Creates a predicate to filter users by their roles.
-     *
-     * <p>If the {@code roles} parameter is null, no filtering is applied. Otherwise, the predicate
-     * checks if the user's roles match any of the provided roles.
-     *
-     * @param roles List of roles to filter users by (e.g., "ADMIN", "USER"). Can be null.
-     * @return A {@link Predicate} that filters users based on roles.
-     */
-    private Predicate<User> filterByRoles(List<String> roles) {
-        return user ->
-                roles == null
-                        || user.getRoles().stream().anyMatch(role -> roles.contains(role.getName().name()));
-    }
 
-    /**
-     * Creates a predicate to filter users by their blocked status.
-     *
-     * <p>If the {@code status} parameter is null, no filtering is applied. Otherwise: - "ACTIVE"
-     * returns users who are not currently blocked. - "BLOCKED" returns users who are currently
-     * blocked.
-     *
-     * @param status Status to filter by ("ACTIVE" or "BLOCKED"). Can be null.
-     * @return A {@link Predicate} that filters users based on their blocked status.
-     */
-    private Predicate<User> filterByStatus(String status) {
-        return user -> {
-            if (status == null) {
-                return true;
-            }
-            boolean isBlocked =
-                    user.getBlockedUntil() != null
-                            && user.getBlockedUntil().isAfter(LocalDateTime.now(Clock.systemUTC()));
-            return status.equalsIgnoreCase("BLOCKED") == isBlocked;
-        };
-    }
-
-    /**
-     * Creates a predicate to filter users by their email address.
-     *
-     * <p>If the {@code email} parameter is null, no filtering is applied. Otherwise, the predicate
-     * performs a case-insensitive partial match to filter users by email.
-     *
-     * @param email Email address (or part of it) to filter users by. Can be null.
-     * @return A {@link Predicate} that filters users based on their email.
-     */
-    private Predicate<User> filterByEmail(String email) {
-        return user -> email == null || user.getEmail().toLowerCase().contains(email.toLowerCase());
-    }
-
-    /**
-     * Generates a temporary password that meets the following criteria:
-     *
-     * <ul>
-     *   <li>Has a fixed length of 8 characters.
-     *   <li>Contains at least one uppercase letter (A–Z).
-     *   <li>Contains at least one digit (0–9).
-     *   <li>Contains at least one special character (@, $, !, %, *, ?, &, #).
-     *   <li>The remaining characters are randomly selected from uppercase letters, lowercase letters,
-     *       digits, and special characters.
-     * </ul>
-     *
-     * <p>The password is generated using a pseudorandom number generator.
-     *
-     * @return a randomly generated temporary password that meets the specified security requirements.
-     */
     private String generateTempPassword() {
-
 
         int length = 8;
 
@@ -712,31 +449,71 @@ public class AuthServiceImpl implements AuthService {
         return password.toString();
     }
 
-    /**
-     * Registers a user in Stripe by creating a customer record using the provided user object. If
-     * successful, assigns the generated Stripe customer ID to the user entity.
-     *
-     * @param user The {@link User} entity for which a Stripe customer ID will be generated.
-     * @throws StripeServiceException if an error occurs during communication with Stripe API.
-     */
     private void registerUserInStripe(User user) {
-        CustomerCreateParams customerParams =
-                CustomerCreateParams.builder().setEmail(user.getEmail()).build();
+        CustomerCreateParams customerParams = CustomerCreateParams.builder().setEmail(user.getEmail()).build();
         Customer customer;
         try {
             customer = Customer.create(customerParams);
         } catch (StripeException e) {
-            log.error(
-                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                    e.getMessage(),
-                    e.getCode(),
-                    e);
+            log.error("Stripe API call failed: {}. Error code: {}. StackTrace: ", e.getMessage(), e.getCode(), e);
             throw new StripeServiceException("Error occurred while registration. Please try again later");
         }
         user.setStripeCustomerId(customer.getId());
-        log.debug(
-                "Generated and saved StripeCustomerId: {} for user with ID: {}",
-                customer.getId(),
-                user.getUserId());
+        log.debug("Generated and saved StripeCustomerId: {} for user with ID: {}", customer.getId(), user.getUserId());
+    }
+
+    private CreateUserResponse createUserWithRole(String email, UserRole role) {
+        log.debug("Creating user: {}", email);
+        validateEmailNotRegistered(email);
+
+        Role userRole = getRoleForUserType(role, email);
+
+        String userId = UUID.randomUUID().toString();
+        String password = generateTempPassword();
+        String hashedPassword = passwordEncoder.encode(password);
+
+        User user =
+            new User()
+                .setUserId(userId)
+                .setEmail(email)
+                .setRoles(Collections.singletonList(userRole))
+                .setCreatedAt(LocalDateTime.now(Clock.systemUTC()))
+                .setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
+
+        TemporaryPassword temporaryPassword =
+            new TemporaryPassword(user, hashedPassword,
+                LocalDateTime.now(Clock.systemUTC()).plusHours(tempPasswordExpirationHours));
+
+        user.setTemporaryPassword(temporaryPassword);
+        userRepository.save(user);
+
+        log.debug(LOG_USER_SAVED, email);
+
+        if (role.equals(UserRole.ROLE_USER)) {
+            registerUserInStripe(user);
+        }
+
+        log.info("User: {} created successfully", email);
+
+        String message = String.format("User: %s created successfully", user.getEmail());
+        return new CreateUserResponse(message, password, tempPasswordExpirationHours);
+    }
+
+    private void validateEmailNotRegistered(String email) {
+        if (userRepository.findByEmail(email).isPresent()) {
+            log.debug(LOG_EMAIL_ALREADY_REGISTERED, email);
+            throw new EmailAlreadyRegistered("Email: " + email + " is already registered.");
+        }
+    }
+
+    private Role getRoleForUserType(UserRole role, String email) {
+        return roleRepository
+            .findByName(role)
+            .orElseThrow(
+                () -> {
+                    log.debug("User Role: {} not found", role);
+                    return new InternalAuthServiceException(
+                        String.format("Failed to register user with email: %s", email));
+                });
     }
 }

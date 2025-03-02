@@ -1,7 +1,7 @@
 package com.ifortex.internship.authservice.controller;
 
-import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authservice.service.impl.AuthServiceImpl;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
 import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Authentication", description = "User account authentication")
 public class AuthController {
 
-  private final AuthService authService;
+  private final AuthServiceImpl authService;
   private final TokenService tokenService;
 
   @Operation(summary = "User registration", description = "Registers a new user in the system.")

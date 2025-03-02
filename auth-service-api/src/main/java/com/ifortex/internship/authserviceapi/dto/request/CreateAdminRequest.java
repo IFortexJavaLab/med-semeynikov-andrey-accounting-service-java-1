@@ -9,9 +9,9 @@ import lombok.Setter;
 @Setter
 public class CreateAdminRequest {
 
-  @Email(message = "Invalid email format")
-  @NotBlank(message = "Email is required")
-  private String email;
+    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email is required")
+    private String email;
 
-  private Boolean isSuper = false;
+    private boolean isSuper;
 }

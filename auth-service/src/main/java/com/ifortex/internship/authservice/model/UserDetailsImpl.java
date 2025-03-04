@@ -1,60 +1,64 @@
 package com.ifortex.internship.authservice.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.time.LocalDateTime;
-import java.util.Collection;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.UUID;
+
 @Getter
 @Setter
 @Builder
 public class UserDetailsImpl implements UserDetails {
 
-  private String userId;
-  private String email;
-  @JsonIgnore private String password;
-  private boolean isTwoFactorEnabled;
-  private boolean hasActiveSubscription;
-  private LocalDateTime subscriptionEndDate;
+    private UUID accountId;
+    private String email;
+    @JsonIgnore private String password;
+    private boolean isTwoFactorEnabled;
+    private boolean hasActiveSubscription;
+    private LocalDateTime subscriptionEndDate;
 
-  private Collection<? extends GrantedAuthority> authorities;
+    private Boolean isSuperAdmin;
 
-  @Override
-  public Collection<? extends GrantedAuthority> getAuthorities() {
-    return authorities;
-  }
+    private Collection<? extends GrantedAuthority> authorities;
 
-  @Override
-  public String getPassword() {
-    return password;
-  }
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return authorities;
+    }
 
-  @Override
-  public String getUsername() {
-    return email;
-  }
+    @Override
+    public String getPassword() {
+        return password;
+    }
 
-  @Override
-  public boolean isAccountNonExpired() {
-    return true;
-  }
+    @Override
+    public String getUsername() {
+        return email;
+    }
 
-  @Override
-  public boolean isAccountNonLocked() {
-    return true;
-  }
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 
-  @Override
-  public boolean isCredentialsNonExpired() {
-    return true;
-  }
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
 
-  @Override
-  public boolean isEnabled() {
-    return true;
-  }
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
 }

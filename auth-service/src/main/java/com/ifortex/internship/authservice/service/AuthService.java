@@ -1,208 +1,381 @@
 package com.ifortex.internship.authservice.service;
 
+import com.ifortex.internship.authservice.dto.AdminDetailsDto;
+import com.ifortex.internship.authservice.dto.CreatedAccountDto;
+import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
-import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authserviceapi.dto.AuthUserDto;
-import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
-import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
+import com.ifortex.internship.authservice.model.Account;
+import com.ifortex.internship.authservice.model.RefreshToken;
+import com.ifortex.internship.authservice.model.TemporaryPassword;
+import com.ifortex.internship.authservice.model.UserDetailsImpl;
+import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
+import com.ifortex.internship.authservice.model.constant.RoleType;
+import com.ifortex.internship.authservice.repository.AccountRepository;
+import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
+import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
 import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
 import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
+import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
+import jakarta.mail.MessagingException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
-/**
- * Service interface for handling user login and authentication.
- *
- * <p>Provides methods to authenticate users, generate authentication tokens.
- */
-public interface AuthService {
+//todo split this class
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AuthService {
 
-  /**
-   * Registers a new user in the system.
-   *
-   * <p>This method validates the registration request, including email uniqueness and password
-   * confirmation. If valid, it hashes the user's password, assigns the default "non-subscribed
-   * user" role, creates stripe user id and saves the user in the database.
-   *
-   * @param request the registration request containing user details like email, password, and
-   *     password confirmation
-   * @throws EmailAlreadyRegistered if the email is already registered in the system
-   * @throws InvalidRequestException if the provided password and its confirmation do not match
-   * @throws EntityNotFoundException if the default "non-subscribed user" role is not found in the
-   *     database
-   */
-  void registerUser(RegistrationRequest request);
+    private static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
+    private static final String LOG_REFRESH_TOKEN_DELETED = "Refresh token deleted successfully for user: {}";
+    private static final String LOG_EMAIL_ALREADY_REGISTERED = "Email: {} is already registered";
 
-  /**
-   * Creates a new client.
-   *
-   * @param request the request containing the email of the client to be created
-   * @return a response containing a success message, temporary password, and its expiration time
-   */
-  CreateUserResponse createClient(CreateClientRequest request);
+    private static final String UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final String DIGITS = "0123456789";
+    private static final String SPECIAL_CHARACTERS = "@$!%*?&#";
+    private static final String ALL_ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&#";
 
-  /**
-   * Authenticates a user based on the provided login credentials.
-   *
-   * <p>This method validates the user's email and password using Spring Security's authentication
-   * manager. If the user has two-factor authentication (2FA) enabled, an OTP (one-time password) is
-   * generated and sent to the user's email. The method then responds with a message instructing the
-   * user to complete the 2FA verification.
-   *
-   * <p>If 2FA is not enabled, the method generates access and refresh tokens for the user and
-   * returns them in the response.
-   *
-   * @param loginRequest the {@link LoginRequest} containing the user's email and password
-   * @return an {@link AuthResponse} containing a message and either instructions for 2FA or
-   *     authentication tokens
-   * @throws EmailSendException if an error occurs while sending the OTP email for 2FA
-   */
-  AuthResponse authenticateUser(LoginRequest loginRequest);
+    private static final int ROLE_LENGTH = 5;
 
-  /**
-   * Verifies the one-time password (OTP) for two-factor authentication during login.
-   *
-   * <p>This method checks the provided OTP against the one stored for the given user email. If the
-   * OTP is valid, it generates authentication tokens (access and refresh) for the user and returns
-   * them in an {@link AuthResponse}.
-   *
-   * @param verifyLoginOtpRequest the {@link VerifyLoginOtpRequest} containing the user's email and
-   *     OTP.
-   * @return an AuthResponse containing the authentication tokens and a success message.
-   * @throws AuthorizationException if the OTP is expired or invalid.
-   * @throws EntityNotFoundException if no user is found with the provided email address.
-   */
-  AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest verifyLoginOtpRequest);
+    private final CustomAuthenticationProvider authenticationProvider;
+    private final TemporaryPasswordRepository passwordRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final AccountRepository accountRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final TokenService tokenService;
+    private final EmailService emailService;
+    private final RedisService redisService;
+    private final Environment environment;
 
-  /**
-   * Logs out the currently authenticated user.
-   *
-   * @return an {@link AuthResponse} containing a success message
-   * @throws AuthorizationException if the user is not authenticated
-   */
-  AuthResponse logoutUser();
+    private final Random random = new Random();
 
-  /**
-   * Initiates the password reset process for a user.
-   *
-   * <p>This method verifies that the provided email address is registered in the system. If the
-   * user is found, a one-time password (OTP) is generated and saved with a defined expiration time.
-   * An email is sent to the user containing the OTP and a link to reset their password.
-   *
-   * @param email the password reset request containing the user's email address.
-   * @return a {@link SuccessResponse} containing a message confirming the initiation of the
-   *     password reset process and instructions to complete it.
-   * @throws EntityNotFoundException if no user is found with the provided email address.
-   * @throws EmailSendException if an error occurs while sending the email with the OTP.
-   */
-  SuccessResponse initiatePasswordReset(String email);
+    @Value("${app.otp.loginExpirationMinutes}")
+    private int loginOtpExpirationMinutes;
+    @Value("${app.tempPassword.expirationHours}")
+    private int tempPasswordExpirationHours;
+    @Value("${app.link.resetPasswordEmail}")
+    private String resetLink;
 
-  /**
-   * Resets the user's password using a one-time password (OTP) sent to their email.
-   *
-   * @param passwordResetWithOtpDto the {@link PasswordResetWithOtpDto} containing the user's email,
-   *     OTP, new password, and password confirmation.
-   * @return a {@link SuccessResponse} containing a message indicating that the password was
-   *     successfully reset.
-   * @throws AuthorizationException if the provided OTP does not match the stored OTP.
-   * @throws InvalidRequestException if the new password and its confirmation do not match.
-   */
-  SuccessResponse resetPasswordWithOtp(PasswordResetWithOtpDto passwordResetWithOtpDto);
+    //todo maybe transfer to clientService
 
-  /**
-   * Generates a random 6-digit one-time password (OTP) for authentication purposes.
-   *
-   * @return a 6-digit OTP as a String
-   */
-  String generateOtp();
+    public AuthResponse authenticateUser(LoginRequest loginRequest) {
 
-  /**
-   * Retrieves the email of the currently authenticated user from the security context.
-   *
-   * @return the email of the authenticated user
-   * @throws AuthorizationException if the user is not authenticated or is anonymous
-   */
-  String getUserEmailFromAuthentication();
+        String accountEmail = loginRequest.getEmail();
+        log.debug("Authenticating user with email: {}", accountEmail);
 
-  /**
-   * Retrieves the unique user ID of the currently authenticated user from the security context.
-   *
-   * @return the user ID of the authenticated user
-   * @throws AuthorizationException if the user is not authenticated or is anonymous
-   */
-  String getUserIdFromAuthentication();
+        Authentication
+            authentication =
+            authenticationProvider.authenticate(new UsernamePasswordAuthenticationToken(accountEmail, loginRequest.getPassword()));
 
-  /**
-   * Retrieves the roles of the currently authenticated user from the security context.
-   *
-   * @return the user ID of the authenticated user
-   * @throws AuthorizationException if the user is not authenticated or is anonymous
-   */
-  List<String> getUserRolesFromAuthentication();
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        Account account = (Account) authentication.getPrincipal();
 
-  // feature move to other service
-  /**
-   * Retrieves a list of {@link AuthUserDto} based on provided filters.
-   *
-   * <p>This method fetches users by their IDs and applies optional filters for roles, status, and
-   * email. It then maps the filtered users to their corresponding {@link AuthUserDto}
-   * representation.
-   *
-   * @param userIds List of user IDs to search for. Cannot be null.
-   * @param roles Optional list of roles to filter users by (e.g., "ADMIN", "USER").
-   * @param status Optional user status to filter by (e.g., "ACTIVE", "BLOCKED").
-   * @param email Optional email to filter users (supports partial matching, case-insensitive).
-   * @return List of {@link AuthUserDto} representing the filtered users.
-   */
-  List<AuthUserDto> searchUsers(
-      List<String> userIds, List<String> roles, String status, String email);
+        log.debug("User: {} successfully authenticated.", accountEmail);
 
-  /**
-   * Resets the password for the user with the specified userId by generating a temporary password.
-   * The method performs validation to ensure that only super admins can reset passwords for super
-   * admins. Deletes any existing temporary passwords and deletes refresh tokens for the user.
-   *
-   * @param userId the ID of the user whose password is to be reset
-   * @return a response containing the newly generated temporary password
-   * @throws EntityNotFoundException if the user with the given ID is not found
-   * @throws ForbiddenActionException if a non-super admin attempts to modify a super admin's
-   *     password
-   */
-  TemporaryPasswordResponse resetPasswordWithTemp(String userId);
+        if (account.isTwoFactorEnabled()) {
+            log.debug("User: {} has 2FA enabled. Sending OTP", accountEmail);
 
-  /**
-   * Initiates a password reset request for a user by setting their current password to null and
-   * sending a password reset request email to the user's email address.
-   *
-   * <p>The user will receive an email with a link to reset their password. The email is generated
-   * using the provided template and sent through the email service. The user's password is set to
-   * null, and the associated refresh token is deleted.
-   *
-   * @param userId the ID of the user whose password is to be reset
-   * @return a {@link SuccessResponse} containing a message confirming that the password reset email
-   *     was sent
-   * @throws EntityNotFoundException if the user with the specified ID does not exist
-   * @throws EmailSendException if an error occurs while sending the password reset email
-   */
-  SuccessResponse resetPasswordWithEmail(String userId);
+            String otp = generateOtp();
+            String redisKey = RedisKeyPrefix.LOGIN_OTP.getPrefix() + accountEmail;
+            redisService.saveOtp(redisKey, otp, loginOtpExpirationMinutes);
+            log.debug("Otp for user: {} generated and saved successfully", accountEmail);
 
-  /**
-   * Creates a new admin user with either an admin or super admin role. Only a super admin can
-   * create another super admin.
-   *
-   * @param request the request containing the email and admin role type
-   * @return a response containing a success message, temporary password, and its expiration time
-   * @throws InternalAuthServiceException if a non-super admin attempts to create a super admin
-   */
-  CreateUserResponse createAdmin(CreateAdminRequest request);
+            // feature refactor method with dotry
+            try {
+                emailService.sendVerificationEmail(accountEmail, "2FA Verification Code", otp);
+            } catch (MessagingException e) {
+                log.error("Error during sending 2FA verification email for: {}. StackTrace: {}", accountEmail, e.getMessage());
+                throw new EmailSendException(String.format("Failed to send 2FA verification email to the: %s", accountEmail));
+            }
+
+            String verifyOtpLink = environment.getProperty("app.link.verifyOtpLogin");
+            String
+                message =
+                String.format("Two-factor authentication is required to complete your login. A verification code has been sent "
+                              + "to your email: %s. Please enter the code along with your email at the following link: ", accountEmail);
+            return AuthResponse.builder().message(message).link(verifyOtpLink).build();
+        }
+
+        return buildAuthResponse(account);
+    }
+
+    @Transactional
+    public AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest request) {
+
+        String accountEmail = request.getEmail();
+        log.debug("Verifying otp to log in for email: {}", accountEmail);
+
+        String otpFromRequest = request.getOtp();
+        String redisKey = RedisKeyPrefix.LOGIN_OTP.getPrefix() + accountEmail;
+        String storedOtp = redisService.getOtp(redisKey);
+
+        if (!otpFromRequest.equals(storedOtp)) {
+            log.debug("OTP has expired or is invalid for email: {}", accountEmail);
+            log.info("Failed to login for user: {}", accountEmail);
+            throw new InvalidRequestException("OTP has expired or is invalid. Please try again.");
+        }
+
+        redisService.deleteOtp(redisKey);
+
+        var account = accountRepository.findByEmail(accountEmail).orElseThrow(() -> {
+            log.debug(LOG_ACCOUNT_NOT_FOUND, accountEmail);
+            return new AuthorizationException("Failed to verify otp. Please try again.");
+        });
+
+        return buildAuthResponse(account);
+    }
+
+    @Transactional
+    public AuthResponse logoutUser() {
+
+        String userEmail = getUserEmailFromAuthentication();
+        log.info("Logout attempt for user: {}", userEmail);
+        refreshTokenRepository.deleteRefreshTokenByAccountEmail(userEmail);
+        log.debug(LOG_REFRESH_TOKEN_DELETED, userEmail);
+
+        log.info("Logout successful for user: {}", userEmail);
+        return AuthResponse.builder().message(String.format("Logout successful for user %s", userEmail)).build();
+    }
+
+    public String getUserEmailFromAuthentication() {
+        UserDetailsImpl principle = validateAuthenticatedUser();
+        return principle.getEmail();
+    }
+
+    public UUID getAccountIdFromAuthentication() {
+        UserDetailsImpl principle = validateAuthenticatedUser();
+        return principle.getAccountId();
+    }
+
+    public List<String> getUserRolesFromAuthentication() {
+        UserDetailsImpl principle = validateAuthenticatedUser();
+        return principle.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList();
+    }
+
+    public AdminDetailsDto getAdminDetailsFromAuthentication() {
+        UserDetailsImpl principle = validateAuthenticatedUser();
+        List<RoleType> role = principle.
+            getAuthorities().stream()
+            .map(authority ->
+                RoleType.valueOf(authority.getAuthority().substring(ROLE_LENGTH)))
+            .toList();
+
+        RoleType roleType = null;
+        if (!role.isEmpty()) {
+            roleType = role.getFirst();
+        }
+        return new AdminDetailsDto(principle.getAccountId(),
+            principle.getEmail(), roleType, principle.getIsSuperAdmin());
+    }
+
+    @Transactional
+    public TemporaryPasswordResponse resetPasswordWithTemp(UUID accountId) {
+
+        log.debug("Initiating password reset for user with account ID: {}", accountId);
+        AdminDetailsDto adminDetails = getAdminDetailsFromAuthentication();
+
+        Account account = accountRepository.findByAccountId(accountId).orElseThrow(() -> {
+            log.error("Account with ID: {} not found", accountId);
+            return new EntityNotFoundException(String.format("Account with ID: %s not found", accountId));
+        });
+
+        validateUserModificationPermission(adminDetails, account);
+
+        deleteOldTemporaryPassword(account);
+
+        String tempPassword = generateTempPassword();
+        String hashedPassword = passwordEncoder.encode(tempPassword);
+        var temporaryPassword =
+            new TemporaryPassword(
+                account,
+                hashedPassword,
+                Instant.now().plusSeconds(TimeUnit.HOURS.toSeconds(tempPasswordExpirationHours)));
+
+        account.setPasswordHash(null);
+        account.setTemporaryPassword(temporaryPassword);
+        accountRepository.save(account);
+        log.debug("Temporary password created and saved for account ID: {}", accountId);
+
+        refreshTokenRepository.deleteRefreshTokenByAccountEmail(account.getEmail());
+        log.debug(LOG_REFRESH_TOKEN_DELETED, account.getEmail());
+
+        log.info("Password has been reset for user: {} by admin: {}", accountId, adminDetails.getAccountId());
+
+        return new TemporaryPasswordResponse(tempPassword, tempPasswordExpirationHours);
+    }
+
+    public void validateUserModificationPermission(AdminDetailsDto changer, Account targetAccount) {
+
+        UUID editorAccountId = changer.getAccountId();
+        UUID targetAccountId = targetAccount.getAccountId();
+        RoleType targetRole = targetAccount.getAccountRole().getRoleType();
+
+        log.debug("Validating user modification permission. Editor ID: {}, Target ID: {}, Target Role: {}",
+            editorAccountId, targetAccountId, targetRole);
+
+        if (changer.isSuperAdmin()) {
+            log.debug("Editor with ID: {} is a super admin. Modification allowed.", editorAccountId);
+            return;
+        }
+
+        boolean
+            isTargetUserClientOrParamedic =
+            targetAccount.getAccountRole().getRoleType().equals(RoleType.CLIENT) ||
+            targetAccount.getAccountRole().getRoleType().equals(RoleType.PARAMEDIC);
+
+        if (!isTargetUserClientOrParamedic) {
+            log.error("Permission denied. Editor ID: {}, Target ID: {}, Target Role: {}",
+                editorAccountId, targetAccountId, targetRole);
+            throw new ForbiddenActionException("You can't edit this user");
+        }
+        log.debug("User modification validation passed. Editor ID: {}, Target ID: {}", editorAccountId, targetAccountId);
+    }
+
+    @Transactional
+    public SuccessResponse resetPasswordWithEmail(UUID accountId) {
+        log.debug("Initiating password reset request email for user with ID: {}", accountId);
+
+        AdminDetailsDto adminDetails = getAdminDetailsFromAuthentication();
+
+        Account account = accountRepository.findByAccountId(accountId).orElseThrow(() -> {
+            log.error("Account with ID: {} not found", accountId);
+            return new EntityNotFoundException(String.format("Account with ID: %s not found", accountId));
+        });
+        String accountEmail = account.getEmail();
+
+        validateUserModificationPermission(adminDetails, account);
+
+        deleteOldTemporaryPassword(account);
+
+        account.setPasswordHash(null);
+        log.debug("Password set to null for user ID: {}", accountId);
+        accountRepository.save(account);
+
+        refreshTokenRepository.deleteRefreshTokenByAccountEmail(accountEmail);
+        log.debug(LOG_REFRESH_TOKEN_DELETED, accountEmail);
+
+        String resetMessage = String.format(resetLink, account.getEmail());
+        try {
+            emailService.sendPasswordResetRequestEmail(account.getEmail(), "Password reset", resetMessage);
+        } catch (MessagingException e) {
+            log.error("Error during sending 2FA verification email for: {}. StackTrace: {}", accountEmail, e.getMessage());
+            throw new EmailSendException(String.format("Failed to send Password reset request to the email: %s", accountEmail));
+        }
+
+        String message = String.format("Password reset request email sent to: %s.", accountEmail);
+        log.info("Password has been reset for user: {} by admin: {}", accountId, adminDetails.getAccountId());
+        return new SuccessResponse(message);
+    }
+
+    private UserDetailsImpl validateAuthenticatedUser() {
+        Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if ("anonymousUser".equals(principle.toString())) {
+            log.debug("Attempt to get user details by anonymous or unauthenticated user.");
+            throw new AuthorizationException("User is not authenticated. Please log in.");
+        }
+        return (UserDetailsImpl) principle;
+    }
+
+    private void deleteOldTemporaryPassword(Account account) {
+        if (account.getTemporaryPassword() != null) {
+            passwordRepository.delete(account.getTemporaryPassword());
+            account.setTemporaryPassword(null);
+            passwordRepository.flush();
+            log.debug("Deleted previous temp password for account ID: {}", account.getAccountId());
+        }
+    }
+
+    private AuthResponse buildAuthResponse(Account account) {
+
+        String newAccessToken = tokenService.generateAccessToken(account);
+        log.debug("Access token generated successfully for account: {}", account.getEmail());
+
+        RefreshToken newRefreshToken = tokenService.createRefreshToken(account.getEmail());
+
+        Long jwtExpirationS = Long.valueOf(Objects.requireNonNull(environment.getProperty("app.jwtExpirationS")));
+        Long refreshTokenExpirationS = Long.valueOf(Objects.requireNonNull(environment.getProperty("app.refreshTokenExpirationS")));
+
+        return AuthResponse.builder()
+            .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS))
+            .build();
+    }
+
+    private String generateTempPassword() {
+
+        int length = 8;
+
+        char upper = UPPERCASE.charAt(random.nextInt(UPPERCASE.length()));
+        char digit = DIGITS.charAt(random.nextInt(DIGITS.length()));
+        char special = SPECIAL_CHARACTERS.charAt(random.nextInt(SPECIAL_CHARACTERS.length()));
+
+        StringBuilder password = new StringBuilder();
+        password.append(upper).append(digit).append(special);
+        for (int i = 3; i < length; i++) {
+            password.append(ALL_ALLOWED.charAt(random.nextInt(ALL_ALLOWED.length())));
+        }
+
+        log.debug("Temporary password generated successfully");
+        return password.toString();
+    }
+
+    public void validateEmailNotRegistered(String email) {
+        if (accountRepository.findByEmail(email).isPresent()) {
+            log.error(LOG_EMAIL_ALREADY_REGISTERED, email);
+            throw new EmailAlreadyRegistered("Email: " + email + " is already registered.");
+        }
+    }
+
+    public CreatedAccountDto createAccount(String email, String password) {
+
+        Account account =
+            new Account()
+                .setAccountId(UUID.randomUUID())
+                .setEmail(email);
+
+        String hashedPassword = null;
+        if (password == null) {
+
+            password = generateTempPassword();
+            TemporaryPassword temporaryPassword =
+                new TemporaryPassword(account, hashedPassword,
+                    Instant.now().plusSeconds(TimeUnit.HOURS.toSeconds(tempPasswordExpirationHours)));
+            account.setTemporaryPassword(temporaryPassword);
+
+        } else {
+            hashedPassword = passwordEncoder.encode(password);
+            account.setPasswordHash(hashedPassword);
+        }
+        accountRepository.save(account);
+
+        return new CreatedAccountDto(account, password, tempPasswordExpirationHours);
+    }
+
+    public String generateOtp() {
+        int code = random.nextInt(900000) + 100000;
+        return String.valueOf(code);
+    }
 }

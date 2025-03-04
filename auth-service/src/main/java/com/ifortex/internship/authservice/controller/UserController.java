@@ -1,8 +1,8 @@
 package com.ifortex.internship.authservice.controller;
 
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
-import com.ifortex.internship.authservice.service.impl.AuthServiceImpl;
-import com.ifortex.internship.authservice.service.impl.UserServiceImpl;
+import com.ifortex.internship.authservice.service.AccountService;
+import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authserviceapi.dto.request.UpdateUserDto;
@@ -39,8 +39,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class UserController {
 
-    private final UserServiceImpl userService;
-    private final AuthServiceImpl authService;
+    private final AccountService userService;
+    private final AuthService authService;
+    private final AccountService accountService;
 
     @Operation(summary = "Update user", description = "Allows updating user information.")
     @PatchMapping
@@ -74,13 +75,13 @@ public class UserController {
 
     @PostMapping("/email")
     @Operation(summary = "Change email")
-    public ResponseEntity<?> changeEmailRequest(
+    public ResponseEntity<ChangeEmailResponse> changeEmailRequest(
         @RequestParam("newEmail")
         @Email(message = "Invalid email format")
         @NotBlank(message = "Email cannot be empty")
         String newEmail) {
 
-        var userId = authService.getUserIdFromAuthentication();
+        var userId = authService.getAccountIdFromAuthentication();
         log.info("Request to change email for user with ID: {}", userId);
         ChangeEmailResponse response = userService.changeEmailRequest(newEmail);
         return ResponseEntity.ok(response);
@@ -88,17 +89,17 @@ public class UserController {
 
     @PatchMapping("/email-confirm")
     @Operation(summary = "Change email")
-    public ResponseEntity<?> changeEmailConfirm(
+    public ResponseEntity<ChangeEmailResponse> changeEmailConfirm(
         @RequestParam("newEmail")
         @Email(message = "Invalid email format")
         @NotBlank(message = "Email cannot be empty")
         String newEmail,
-        @RequestParam(required = false, name = "code")
+        @RequestParam(name = "code")
         @Pattern(
             regexp = "^\\d{6}$",
             message = "One-time password must consist of exactly 6 digits")
         String code) {
-        var userId = authService.getUserIdFromAuthentication();
+        var userId = authService.getAccountIdFromAuthentication();
         log.info("Request to confirm changing email for user with ID: {}", userId);
         ChangeEmailResponse response = userService.changeEmailConfirm(newEmail, code);
         return ResponseEntity.ok(response);
@@ -106,14 +107,14 @@ public class UserController {
 
     @Operation(summary = "Request password reset")
     @PostMapping("/password/reset")
-    public ResponseEntity<?> initiatePasswordReset(
+    public ResponseEntity<SuccessResponse> initiatePasswordReset(
         @RequestParam("email")
         @Email(message = "Invalid email format")
         @NotBlank(message = "Email cannot be empty")
         String email) {
 
         log.info("Reset password attempt for user: {}", email);
-        SuccessResponse response = authService.initiatePasswordReset(email);
+        SuccessResponse response = accountService.passwordResetRequest(email);
         log.info("Email with otp to reset password was sent to the email: {}", email);
 
         return ResponseEntity.ok().body(response);
@@ -121,11 +122,11 @@ public class UserController {
 
     @Operation(summary = "Reset password with OTP")
     @PostMapping("/password/reset-confirm")
-    public ResponseEntity<?> resetPasswordWithOtp(
+    public ResponseEntity<SuccessResponse> resetPasswordWithOtp(
         @RequestBody @Valid PasswordResetWithOtpDto request) {
 
         log.info("Reset password with otp attempt for email: {}", request.getEmail());
-        SuccessResponse response = authService.resetPasswordWithOtp(request);
+        SuccessResponse response = accountService.resetPasswordConfirm(request);
 
         return ResponseEntity.ok().body(response);
     }

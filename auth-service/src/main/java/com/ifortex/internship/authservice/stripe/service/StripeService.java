@@ -2,9 +2,10 @@ package com.ifortex.internship.authservice.stripe.service;
 
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
-import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.repository.UserRepository;
-import com.ifortex.internship.authservice.service.impl.AuthServiceImpl;
+import com.ifortex.internship.authservice.model.Account;
+import com.ifortex.internship.authservice.model.Client;
+import com.ifortex.internship.authservice.repository.ClientRepository;
+import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.stripe.dto.request.PurchaseSubscriptionRequest;
 import com.ifortex.internship.authservice.stripe.dto.response.PlanDto;
 import com.ifortex.internship.authservice.stripe.dto.response.PurchaseSubscriptionResponse;
@@ -31,11 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -43,12 +43,13 @@ import java.util.Optional;
 public class StripeService {
     private static final String LOG_STRIPE_FAILED = "Stripe API call failed: {}. Error code: {}. StackTrace: ";
 
-    private final UserRepository userRepository;
-    private final AuthServiceImpl authService;
+    private final AuthService authService;
     private final SubscriptionRepository subscriptionRepository;
+    private final ClientRepository clientRepository;
 
+    //todo скорее всего придется получать через environment
     @Value("${app.stripe.api.key}")
-    private static String stripeApiKey;
+    private String stripeApiKey;
 
     @Value("${app.stripe.url.cancel}")
     private String cancelLink;
@@ -59,7 +60,7 @@ public class StripeService {
     private static final int CENTS_IN_DOLLAR = 100;
 
     @PostConstruct
-    public static void init() {
+    public void init() {
         Stripe.apiKey = stripeApiKey;
     }
 
@@ -128,52 +129,54 @@ public class StripeService {
     public PurchaseSubscriptionResponse createSubscriptionCheckoutSession(
         PurchaseSubscriptionRequest request) {
 
-        String userEmail = authService.getUserEmailFromAuthentication();
+        UUID accountId = authService.getAccountIdFromAuthentication();
+        log.info("Starting subscription checkout session for account ID: {}", accountId);
 
-        User user =
-            userRepository
-                .findByEmail(userEmail)
+        Client client =
+            clientRepository.findByAccountId(accountId)
                 .orElseThrow(
                     () -> {
-                        log.debug("User with email: {} not found", userEmail);
+                        log.error("Client with account: {} not found", accountId);
                         return new EntityNotFoundException(
-                            String.format("User with email: %s not found", userEmail));
+                            String.format("Client with account: %s not found", accountId));
                     });
 
         boolean hasActiveSubscription =
-            user.getStripeSubscriptions() != null
-            && user.getStripeSubscriptions().stream()
+            client.getSubscriptions() != null
+            && client.getSubscriptions().stream()
                 .anyMatch(subscription -> subscription.getStatus() == SubscriptionStatus.ACTIVE);
 
         if (hasActiveSubscription) {
-            log.debug(
-                "User with ID: {} attempt to purchase another subscription while an active subscription already exists.",
-                user.getUserId());
+            log.error(
+                "Client with ID: {} attempt to purchase another subscription while an active subscription already exists.",
+                client.getId());
             throw new ActiveSubscriptionExistsException("You already have active subscription");
         }
 
         boolean isNotStripeCustomer =
-            user.getStripeCustomerId() == null || user.getStripeCustomerId().isEmpty();
+            client.getStripeId() == null || client.getStripeId().isEmpty();
         if (isNotStripeCustomer) {
+            log.info("Client with ID: {} does not have a Stripe Customer ID. Creating one...", client.getId());
+
             CustomerCreateParams customerParams =
-                CustomerCreateParams.builder().setEmail(userEmail).build();
+                CustomerCreateParams.builder().setEmail(client.getAccount().getEmail()).build();
             Customer customer;
             try {
                 customer = Customer.create(customerParams);
+                log.debug("Successfully created Stripe Customer ID: {} for client ID: {}", customer.getId(), client.getId());
             } catch (StripeException e) {
                 log.error(LOG_STRIPE_FAILED, e.getMessage(), e.getCode(), e);
                 throw new StripeServiceException(
                     "Error occurred while processing your payment. Please try again later");
             }
-            user.setStripeCustomerId(customer.getId());
-            user.setUpdatedAt(LocalDateTime.now(Clock.systemUTC()));
-            userRepository.save(user);
-            log.debug(
-                "Generated and saved StripeCustomerId: {} for user with ID: {}",
-                customer.getId(),
-                user.getUserId());
+            client.setStripeId(customer.getId());
+
+            clientRepository.save(client);
+            log.info("Created and saved new Stripe Customer ID: {} for client ID: {}", customer.getId(), client.getId());
+
         }
 
+        log.debug("Creating Stripe subscription session for client ID: {} with price ID: {}", client.getId(), request.getPriceId());
         SessionCreateParams.LineItem lineItem =
             SessionCreateParams.LineItem.builder()
                 .setPrice(request.getPriceId())
@@ -182,7 +185,7 @@ public class StripeService {
 
         SessionCreateParams params =
             SessionCreateParams.builder()
-                .setCustomer(user.getStripeCustomerId())
+                .setCustomer(client.getStripeId())
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
                 .setSuccessUrl(successLink)
@@ -193,8 +196,9 @@ public class StripeService {
         Session session;
         try {
             session = Session.create(params);
+            log.debug("Successfully created Stripe session ID: {} for client ID: {}", session.getId(), client.getId());
         } catch (StripeException e) {
-            if ("resource_missing".equals(e.getCode())) { // Если priceId не найден
+            if ("resource_missing".equals(e.getCode())) {
                 log.debug("Invalid subscription Price ID: {}", request.getPriceId());
                 throw new InvalidRequestException("Invalid subscription price ID: " + request.getPriceId());
             }
@@ -206,28 +210,28 @@ public class StripeService {
         PurchaseSubscriptionResponse response = new PurchaseSubscriptionResponse();
         response.setSessionId(session.getId());
         response.setSessionUrl(session.getUrl());
-
+        log.info("Subscription checkout session created successfully for client ID: {}. Session URL: {}", client.getId(), session.getUrl());
         return response;
     }
 
     public void cancelSubscriptionForUser() {
 
-        String userEmail = authService.getUserEmailFromAuthentication();
+        UUID accountId = authService.getAccountIdFromAuthentication();
 
-        User user =
-            userRepository
-                .findByEmail(userEmail)
+        Client client =
+            clientRepository
+                .findByAccountId(accountId)
                 .orElseThrow(
                     () -> {
-                        log.debug("User with email: {} not found not found", userEmail);
+                        log.debug("Client with account ID: {} not found ", accountId);
                         return new EntityNotFoundException(
-                            String.format("User with email %s not found", userEmail));
+                            String.format("Client with account ID %s not found", accountId));
                     });
 
         Optional<StripeSubscription> subscriptionOpt =
-            subscriptionRepository.findActiveSubscriptionByUserId(user.getId());
+            subscriptionRepository.findActiveSubscriptionByUserId(client.getId());
         if (subscriptionOpt.isEmpty()) {
-            log.debug("No active subscription found for user with ID: {}", user.getUserId());
+            log.debug("No active subscription found for client with account ID: {}", accountId);
             throw new ActiveSubscriptionNotFoundException("You have no active subscriptions");
         }
         StripeSubscription stripeSubscription = subscriptionOpt.get();
@@ -248,10 +252,32 @@ public class StripeService {
         }
     }
 
-    public void deleteUser(User user) throws StripeException {
+    public String registerCustomer(Account account) {
 
-        log.debug("Deleting user with ID: {} from stripe", user.getUserId());
-        Customer resource = Customer.retrieve(user.getStripeCustomerId());
+        log.info("Registering client with email: {} in Stripe", account.getEmail());
+
+        CustomerCreateParams customerParams = CustomerCreateParams.builder().setEmail(account.getEmail()).build();
+        Customer customer;
+        try {
+            customer = Customer.create(customerParams);
+        } catch (StripeException e) {
+            log.error(LOG_STRIPE_FAILED, e.getMessage(), e.getCode(), e);
+            throw new StripeServiceException("Error occurred while registration. Please try again later");
+        }
+        log.debug("Generated StripeCustomerId: {} for account with ID: {}", customer.getId(), account.getAccountId());
+        log.info("Client with email: {} has been registered in Stripe successfully", account.getEmail());
+        return customer.getId();
+    }
+
+    public void deleteUser(UUID accountId) throws StripeException {
+
+        log.info("Deleting customer with account: {} from stripe", accountId);
+        String stripeCustomerId = clientRepository.findStripeIdByAccountId(accountId).orElseThrow(() -> {
+            log.error("Stripe ID not found for account ID: {}", accountId);
+            return new EntityNotFoundException(String.format("Stripe ID not found for account ID: %s", accountId.toString()));
+        });
+        Customer resource = Customer.retrieve(stripeCustomerId);
         resource.delete();
+        log.info("Customer with account: {} deleted successfully", accountId);
     }
 }

@@ -3,8 +3,8 @@ package com.ifortex.internship.authservice.config;
 import com.ifortex.internship.authservice.filter.AuthEntryPointJwt;
 import com.ifortex.internship.authservice.filter.AuthTokenFilter;
 import com.ifortex.internship.authservice.filter.CustomAccessDeniedHandler;
+import com.ifortex.internship.authservice.service.CustomAuthenticationProvider;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authservice.service.impl.CustomAuthenticationProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,7 +50,7 @@ public class AuthSecurityConfig {
                         .requestMatchers("/api/v1/auth/logout").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/auth-service/users/**").authenticated()
-                        .requestMatchers("/api/v1/accounting/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers("/api/v1/accounting/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/subscription/plans").permitAll()
                         .requestMatchers("/api/v1/subscription/webhooks").permitAll()
                         .requestMatchers("/api/v1/subscription/**").authenticated()

@@ -1,17 +1,18 @@
 package com.ifortex.internship.authserviceapi.dto.request;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
-import java.util.List;
-
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Getter
 @Setter
 public class UserSearchRequest {
-    private String firstName;
-    private String lastName;
-    private String phone;
-    private String email;
-    private List<String> roles;
-    private String status;
+    private String searchText;
+    boolean admins;
+    boolean clients;
+    boolean medics;
+    boolean blocked;
+    boolean deleted;
 }

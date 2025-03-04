@@ -1,7 +1,7 @@
 package com.ifortex.internship.authservice.stripe.service;
 
-import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.repository.UserRepository;
+import com.ifortex.internship.authservice.model.Client;
+import com.ifortex.internship.authservice.repository.ClientRepository;
 import com.ifortex.internship.authservice.stripe.exception.StripeServiceException;
 import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
 import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
@@ -12,12 +12,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,20 +23,19 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Profile("syncMod")
+//@Profile("syncMod")
 @Component
 @RequiredArgsConstructor
 public class SubscriptionSyncService {
     private final StripeService stripeService;
     private final SubscriptionRepository subscriptionRepository;
-    private final UserRepository userRepository;
+    private final ClientRepository clientRepository;
 
     @PostConstruct
     @Transactional
     public void syncSubscriptionsOnStartup() {
 
         //todo refactor to correspond sonarCube
-
 
         log.debug("Syncing stripe subscriptions with local db");
 
@@ -48,22 +44,22 @@ public class SubscriptionSyncService {
             stripeSubscriptions = stripeService.fetchAllSubscriptionsFromStripe();
         } catch (StripeException e) {
             log.error(
-                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                    e.getMessage(),
-                    e.getCode(),
-                    e);
+                "Stripe API call failed: {}. Error code: {}. StackTrace: ",
+                e.getMessage(),
+                e.getCode(),
+                e);
             throw new StripeServiceException(
-                    "Error occurred while sync with stripe. Please try again later");
+                "Error occurred while sync with stripe. Please try again later");
         }
 
         List<StripeSubscription> localSubscriptions =
-                subscriptionRepository.findAllByStripeSubscriptionIdIn(
-                        stripeSubscriptions.stream().map(Subscription::getId).toList());
+            subscriptionRepository.findAllByStripeSubscriptionIdIn(
+                stripeSubscriptions.stream().map(Subscription::getId).toList());
 
         Map<String, StripeSubscription> localSubscriptionsMap =
-                localSubscriptions.stream()
-                        .collect(
-                                Collectors.toMap(StripeSubscription::getStripeSubscriptionId, Function.identity()));
+            localSubscriptions.stream()
+                .collect(
+                    Collectors.toMap(StripeSubscription::getStripeSubscriptionId, Function.identity()));
 
         List<StripeSubscription> toUpdateOrSave = new ArrayList<>();
 
@@ -71,19 +67,17 @@ public class SubscriptionSyncService {
             StripeSubscription localSub = localSubscriptionsMap.get(stripeSub.getId());
 
             SubscriptionStatus newStatus =
-                    SubscriptionStatus.valueOf(stripeSub.getStatus().toUpperCase());
+                SubscriptionStatus.valueOf(stripeSub.getStatus().toUpperCase());
 
-            LocalDateTime startDate =
-                    stripeSub.getStartDate() != null
-                            ? LocalDateTime.ofInstant(
-                            Instant.ofEpochSecond(stripeSub.getStartDate()), ZoneOffset.UTC)
-                            : null;
+            Instant startDate =
+                stripeSub.getStartDate() != null
+                    ? Instant.ofEpochSecond(stripeSub.getStartDate())
+                    : null;
 
-            LocalDateTime endDate =
-                    stripeSub.getCurrentPeriodEnd() != null
-                            ? LocalDateTime.ofInstant(
-                            Instant.ofEpochSecond(stripeSub.getCurrentPeriodEnd()), ZoneOffset.UTC)
-                            : null;
+            Instant endDate =
+                stripeSub.getCurrentPeriodEnd() != null
+                    ? Instant.ofEpochSecond(stripeSub.getCurrentPeriodEnd())
+                    : null;
 
             if (localSub != null) {
                 boolean isUpdated = false;
@@ -118,12 +112,12 @@ public class SubscriptionSyncService {
                 newSub.setEndDate(endDate);
 
                 String customerId = stripeSub.getCustomer();
-                Optional<User> user = userRepository.findByStripeCustomerId(customerId);
-                if (user.isEmpty()) {
-                    log.debug("User with stripe customer ID: {} not found", customerId);
+                Optional<Client> client = clientRepository.findByStripeId(customerId);
+                if (client.isEmpty()) {
+                    log.debug("Client with stripe customer ID: {} not found", customerId);
                     break;
                 }
-                newSub.setUser(user.get());
+                newSub.setClient(client.get());
                 toUpdateOrSave.add(newSub);
             }
         }

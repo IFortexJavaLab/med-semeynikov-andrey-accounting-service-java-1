@@ -1,139 +1,136 @@
 package com.ifortex.internship.authservice.stripe.service;
 
-import com.ifortex.internship.authservice.model.User;
-import com.ifortex.internship.authservice.repository.UserRepository;
+import com.ifortex.internship.authservice.model.Client;
+import com.ifortex.internship.authservice.repository.ClientRepository;
 import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
 import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
 import com.ifortex.internship.authservice.stripe.repository.SubscriptionRepository;
 import com.stripe.model.Invoice;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.Optional;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class StripeWebhookService {
 
-  private final UserRepository userRepository;
-  private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final ClientRepository clientRepository;
 
-  public void processInvoicePaymentSucceeded(Invoice invoice) {
+    //todo move logs to constants
+    public void processInvoicePaymentSucceeded(Invoice invoice) {
 
-    log.debug("Processing invoice payment succeeded for invoice id: {} ", invoice.getId());
+        log.debug("Processing invoice payment succeeded for invoice id: {} ", invoice.getId());
 
-    String stripeCustomerId = invoice.getCustomer();
-    if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
-      log.warn("Stripe invoice does not contain a customer ID.");
-      return;
+        String stripeCustomerId = invoice.getCustomer();
+        if (stripeCustomerId == null || stripeCustomerId.isEmpty()) {
+            log.warn("Stripe invoice does not contain a customer ID.");
+            return;
+        }
+
+        Optional<Client> clientOpt = clientRepository.findByStripeId(stripeCustomerId);
+        if (clientOpt.isEmpty()) {
+            log.error("Client with Stripe customer ID {} not found.", stripeCustomerId);
+            return;
+        }
+        Client client = clientOpt.get();
+
+        String stripeSubscriptionId = invoice.getSubscription();
+        boolean missingSubscriptionId = stripeSubscriptionId == null || stripeSubscriptionId.isEmpty();
+        if (missingSubscriptionId) {
+            log.warn("Session {} does not contain a subscription ID.", invoice.getId());
+            return;
+        }
+
+        boolean subscriptionAlreadyExists =
+            subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId).isPresent();
+        if (subscriptionAlreadyExists) {
+            log.debug("Subscription record for subscription id {} already exists.", stripeSubscriptionId);
+        } else {
+            StripeSubscription stripeSubscription = new StripeSubscription();
+            stripeSubscription.setStripeSubscriptionId(stripeSubscriptionId);
+            stripeSubscription.setClient(client);
+
+            subscriptionRepository.save(stripeSubscription);
+            log.info(
+                "Created new subscription record for client id: {} with subscription id: {}",
+                client.getId(),
+                stripeSubscriptionId);
+        }
     }
 
-    Optional<User> userOpt = userRepository.findByStripeCustomerId(stripeCustomerId);
-    if (userOpt.isEmpty()) {
-      log.warn("User with Stripe customer ID {} not found.", stripeCustomerId);
-      return;
-    }
-    User user = userOpt.get();
+    public void processSubscriptionCancellation(com.stripe.model.Subscription subscription) {
 
-    // save subscription details to the db
+        String stripeSubscriptionId = subscription.getId();
 
-    String stripeSubscriptionId = invoice.getSubscription();
-    boolean missingSubscriptionId = stripeSubscriptionId == null || stripeSubscriptionId.isEmpty();
-    if (missingSubscriptionId) {
-      log.warn("Session {} does not contain a subscription ID.", invoice.getId());
-      return;
-    }
+        if (stripeSubscriptionId == null || stripeSubscriptionId.isEmpty()) {
+            log.warn(
+                "Subscription cancellation event {} does not contain a valid subscription ID.",
+                subscription.getId());
+            return;
+        }
 
-    boolean subscriptionAlreadyExists =
-        subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId).isPresent();
-    if (subscriptionAlreadyExists) {
-      log.debug("Subscription record for subscription id {} already exists.", stripeSubscriptionId);
-    } else {
-      StripeSubscription stripeSubscription = new StripeSubscription();
-      stripeSubscription.setStripeSubscriptionId(stripeSubscriptionId);
-      stripeSubscription.setUser(user);
+        Optional<StripeSubscription> subscriptionOpt =
+            subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId);
+        if (subscriptionOpt.isEmpty()) {
+            log.warn(
+                "No local subscription record found for Stripe subscription ID: {}",
+                stripeSubscriptionId);
+            return;
+        }
 
-      subscriptionRepository.save(stripeSubscription);
-      log.info(
-          "Created new subscription record for user id: {} with subscription id: {}",
-          user.getId(),
-          stripeSubscriptionId);
-    }
-  }
+        StripeSubscription localSubscription = subscriptionOpt.get();
+        Client client = localSubscription.getClient();
 
-  public void processSubscriptionCancellation(com.stripe.model.Subscription subscription) {
+        Instant startDate =
+            Instant.ofEpochSecond(subscription.getCurrentPeriodStart());
+        Instant endDate =
+            Instant.ofEpochSecond(subscription.getCurrentPeriodEnd());
 
-    String stripeSubscriptionId = subscription.getId();
+        localSubscription.setStartDate(startDate);
+        localSubscription.setEndDate(endDate);
+        localSubscription.setStatus(SubscriptionStatus.CANCELED);
 
-    if (stripeSubscriptionId == null || stripeSubscriptionId.isEmpty()) {
-      log.warn(
-          "Subscription cancellation event {} does not contain a valid subscription ID.",
-          subscription.getId());
-      return;
+        subscriptionRepository.save(localSubscription);
+        log.info(
+            "Updated subscription record with Stripe ID: {} for client with stripe customer ID: {}",
+            stripeSubscriptionId,
+            client.getStripeId());
     }
 
-    Optional<StripeSubscription> subscriptionOpt =
-        subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId);
-    if (subscriptionOpt.isEmpty()) {
-      log.warn(
-          "No local subscription record found for Stripe subscription ID: {}",
-          stripeSubscriptionId);
-      return;
+    public void processSubscriptionUpdated(com.stripe.model.Subscription subscriptionObj) {
+        log.debug("Processing subscription update for session ID: {} ", subscriptionObj.getId());
+
+        String stripeSubscriptionId = subscriptionObj.getId();
+        String customerId = subscriptionObj.getCustomer();
+        String status = subscriptionObj.getStatus();
+        Instant startDate = Instant.ofEpochSecond(subscriptionObj.getCurrentPeriodStart());
+        Instant endDate = Instant.ofEpochSecond(subscriptionObj.getCurrentPeriodEnd());
+
+        Optional<Client> cleintOpt = clientRepository.findByStripeId(customerId);
+        if (cleintOpt.isEmpty()) {
+            log.error("User with Stripe customer ID {} not found.", customerId);
+            return;
+        }
+        Client client = cleintOpt.get();
+        StripeSubscription stripeSubscription =
+            subscriptionRepository
+                .findByStripeSubscriptionId(stripeSubscriptionId)
+                .orElse(new StripeSubscription());
+
+        stripeSubscription.setClient(client);
+        stripeSubscription.setStripeSubscriptionId(stripeSubscriptionId);
+        stripeSubscription.setStartDate(startDate);
+        stripeSubscription.setEndDate(endDate);
+        stripeSubscription.setStatus(SubscriptionStatus.valueOf(status.toUpperCase()));
+
+        subscriptionRepository.save(stripeSubscription);
+
+        log.info(
+            "Subscription:{} updated for client with  ID: {}", stripeSubscriptionId, client.getStripeId());
     }
-
-    StripeSubscription localSubscription = subscriptionOpt.get();
-    User user = localSubscription.getUser();
-
-    LocalDateTime startDate =
-        LocalDateTime.ofEpochSecond(subscription.getCurrentPeriodStart(), 0, ZoneOffset.UTC);
-    LocalDateTime endDate =
-        LocalDateTime.ofEpochSecond(subscription.getCurrentPeriodEnd(), 0, ZoneOffset.UTC);
-
-    localSubscription.setStartDate(startDate);
-    localSubscription.setEndDate(endDate);
-    localSubscription.setStatus(SubscriptionStatus.CANCELED);
-
-    subscriptionRepository.save(localSubscription);
-    log.info(
-        "Updated subscription record with Stripe ID: {} for user with ID: {}",
-        stripeSubscriptionId,
-        user.getUserId());
-  }
-
-  public void processSubscriptionUpdated(com.stripe.model.Subscription subscriptionObj) {
-    log.debug("Processing subscription update for session ID: {} ", subscriptionObj.getId());
-
-    String stripeSubscriptionId = subscriptionObj.getId();
-    String customerId = subscriptionObj.getCustomer();
-    String status = subscriptionObj.getStatus();
-    LocalDateTime startDate =
-        LocalDateTime.ofEpochSecond(subscriptionObj.getCurrentPeriodStart(), 0, ZoneOffset.UTC);
-    LocalDateTime endDate =
-        LocalDateTime.ofEpochSecond(subscriptionObj.getCurrentPeriodEnd(), 0, ZoneOffset.UTC);
-
-    Optional<User> userOpt = userRepository.findByStripeCustomerId(customerId);
-    if (userOpt.isEmpty()) {
-      log.warn("User with Stripe customer ID {} not found.", customerId);
-      return;
-    }
-    User user = userOpt.get();
-    StripeSubscription stripeSubscription =
-        subscriptionRepository
-            .findByStripeSubscriptionId(stripeSubscriptionId)
-            .orElse(new StripeSubscription());
-
-    stripeSubscription.setUser(user);
-    stripeSubscription.setStripeSubscriptionId(stripeSubscriptionId);
-    stripeSubscription.setStartDate(startDate);
-    stripeSubscription.setEndDate(endDate);
-    stripeSubscription.setStatus(SubscriptionStatus.valueOf(status.toUpperCase()));
-
-    subscriptionRepository.save(stripeSubscription);
-
-    log.info(
-        "Subscription:{} updated for user with ID: {}", stripeSubscriptionId, user.getUserId());
-  }
 }

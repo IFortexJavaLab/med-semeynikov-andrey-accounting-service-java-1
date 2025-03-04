@@ -1,36 +1,39 @@
 package com.ifortex.internship.authservice.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
-import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.Instant;
 
 @Entity
 @Getter
 @Setter
 @NoArgsConstructor
 public class TemporaryPassword {
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-  @OneToOne
-  @JoinColumn(name = "user_id", nullable = false)
-  private User user;
+    @JsonBackReference
+    @OneToOne
+    @JoinColumn(name = "account_id", nullable = false)
+    private Account account;
 
-  private String temporaryPasswordHash;
+    private String temporaryPasswordHash;
 
-  private LocalDateTime expirationDate;
+    private Instant expirationDate;
 
-  public TemporaryPassword(User user, String temporaryPasswordHash, LocalDateTime expirationDate) {
-    this.user = user;
-    this.temporaryPasswordHash = temporaryPasswordHash;
-    this.expirationDate = expirationDate;
-  }
+    public TemporaryPassword(Account account, String temporaryPasswordHash, Instant expirationDate) {
+        this.account = account;
+        this.temporaryPasswordHash = temporaryPasswordHash;
+        this.expirationDate = expirationDate;
+    }
 }

@@ -1,7 +1,10 @@
 package com.ifortex.internship.authservice.controller;
 
-import com.ifortex.internship.authservice.service.impl.AuthServiceImpl;
-import com.ifortex.internship.authservice.service.impl.UserServiceImpl;
+import com.ifortex.internship.authservice.dto.UserListViewDto;
+import com.ifortex.internship.authservice.service.AccountService;
+import com.ifortex.internship.authservice.service.AdminService;
+import com.ifortex.internship.authservice.service.AuthService;
+import com.ifortex.internship.authservice.service.ClientService;
 import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
 import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
@@ -12,7 +15,6 @@ import com.ifortex.internship.authserviceapi.dto.response.ClientDto;
 import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
-import com.ifortex.internship.authserviceapi.dto.response.UserListViewDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +39,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @Validated
 @Slf4j
@@ -46,32 +50,37 @@ import java.util.List;
 @Tag(name = "Admin functions API")
 public class AdminController {
 
-    private final AuthServiceImpl authService;
-    private final UserServiceImpl userService;
+    private final AuthService authService;
+    private final AccountService userService;
+    private final AccountService accountService;
+    private final ClientService clientService;
+    private final AdminService adminService;
 
-    @Operation(summary = "Update user", description = "Allows admins to update user information.")
-    @PatchMapping("{userId}")
+    //todo takeout logs to static fields
+
+    @Operation(summary = "Update user profile", description = "Allows admins to update user information.")
+    @PatchMapping("{accountId}")
     public ResponseEntity<ClientDto> updateUser(
-        @PathVariable("userId") String userId,
+        @PathVariable("accountId") UUID accountId,
         @RequestBody UpdateUserDto updateUserDto) {
 
-        log.info("Attempt to update user with ID: {}", userId);
-        ClientDto updatedUser = userService.updateUserByAdmin(userId, updateUserDto);
+        log.info("Attempt to update account with ID: {}", accountId);
+        ClientDto updatedUser = userService.updateUserByAdmin(accountId, updateUserDto);
         return ResponseEntity.ok(updatedUser);
     }
 
     @Operation(summary = "Get user's profile by ID")
-    @GetMapping("/{userId}")
-    public ResponseEntity<ClientDto> getUserProfileById(@PathVariable String userId) {
+    @GetMapping("/{accountId}")
+    public ResponseEntity<ClientDto> getUserProfileById(@PathVariable UUID accountId) {
 
-        log.info("Attempt to get user profile by ID: {}", userId);
-        var fullUser = userService.getUserProfileById(userId);
+        log.info("Attempt to get account profile by ID: {}", accountId);
+        var fullUser = userService.getUserProfileById(accountId);
         return ResponseEntity.ok(fullUser);
     }
 
     @Operation(
         summary = "Search users",
-        description = "Allows admins to search users with filters and pagination.")
+        description = "Allows admins to search users with filters.")
     @PostMapping("/search")
     public ResponseEntity<List<UserListViewDto>> searchUsers(
         @RequestBody UserSearchRequest request,
@@ -83,34 +92,36 @@ public class AdminController {
         int size
     ) {
 
-        log.info("Request to search with through users");
-        Page<UserListViewDto> result = userService.searchUsers(request, page, size);
+        log.info("Request to search with parameters through users");
+        Page<UserListViewDto> result = accountService.searchUsers(request, page, size);
         return ResponseEntity.ok(result.getContent());
     }
 
     @Operation(summary = "Creates new admin")
     @PostMapping("/admin")
-    public ResponseEntity<?> createAdmin(@RequestBody @Valid CreateAdminRequest request) {
+    public ResponseEntity<CreateUserResponse> createAdmin(@RequestBody @Valid CreateAdminRequest request) {
 
-        CreateUserResponse response = authService.createAdmin(request);
+        log.info("Attempt to register Admin with email: {}", request.getEmail());
+        CreateUserResponse response = adminService.createAdmin(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Creates new client")
     @PostMapping("/client")
-    public ResponseEntity<?> createClient(@RequestBody @Valid CreateClientRequest request) {
+    public ResponseEntity<CreateUserResponse> createClient(@RequestBody @Valid CreateClientRequest request) {
 
-        CreateUserResponse response = authService.createClient(request);
+        CreateUserResponse response = clientService.createClient(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Reset user's password by generating temp password")
     @PostMapping("/users/{userId}/reset-password-temp")
-    public ResponseEntity<?> resetPasswordWithTemp(@PathVariable("userId") String userId) {
+    public ResponseEntity<TemporaryPasswordResponse> resetPasswordWithTemp(@PathVariable("userId") UUID accountId) {
 
-        TemporaryPasswordResponse response = authService.resetPasswordWithTemp(userId);
+        log.info("Attempt to reset password for account: {} by admin", accountId);
+        TemporaryPasswordResponse response = authService.resetPasswordWithTemp(accountId);
 
         return ResponseEntity.ok(response);
     }
@@ -119,10 +130,11 @@ public class AdminController {
         summary = "Reset user's password by deleting current password",
         description =
             "Reset user's password by deleting current password and sending email to user with request to reset password")
-    @PostMapping("/users/{userId}/reset-password-email")
-    public ResponseEntity<?> resetPasswordWithEmail(@PathVariable("userId") String userId) {
+    @PostMapping("/users/{accountId}/reset-password-email")
+    public ResponseEntity<SuccessResponse> resetPasswordWithEmail(@PathVariable("accountId") UUID accountId) {
 
-        SuccessResponse response = authService.resetPasswordWithEmail(userId);
+        log.info("Attempt to reset password for account: {} by admin", accountId);
+        SuccessResponse response = authService.resetPasswordWithEmail(accountId);
 
         return ResponseEntity.ok(response);
     }
@@ -133,6 +145,8 @@ public class AdminController {
             "Blocks a user until a specified date. Only ADMIN and SUPER_ADMIN can perform this action")
     @PatchMapping("/users/block")
     public ResponseEntity<Void> blockUser(@RequestBody @Valid BlockUserRequest request) {
+
+        log.info("Attempt to block user with account: {}", request.getAccountId());
         userService.blockUser(request);
         return ResponseEntity.noContent().build();
     }
@@ -151,16 +165,22 @@ public class AdminController {
         summary = "Soft delete user",
         description =
             "Soft deletes a user by marking them as deleted without removing their data from the system")
-    @DeleteMapping("/users/{userId}")
-    public ResponseEntity<Void> softDeleteUser(@PathVariable("userId") String userId) {
-        userService.softDeleteUser(userId);
+    @DeleteMapping("/users/{accountId}")
+    public ResponseEntity<Void> softDeleteUser(@PathVariable("accountId") UUID accountId) {
+
+        log.info("Attempt to delete account: {} with soft delete", accountId);
+        userService.softDeleteUser(accountId);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Delete user entirely")
-    @DeleteMapping("/users/{userId}/hard")
-    public ResponseEntity<Void> hardDeleteUser(@PathVariable("userId") String userId) {
-        userService.hardDelete(userId);
+    @DeleteMapping("/users/{accountId}/hard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> hardDeleteUser(@PathVariable("accountId") UUID accountId) {
+
+        log.info("Attempt to delete account: {} with hard delete", accountId);
+        userService.hardDelete(accountId);
         return ResponseEntity.noContent().build();
     }
+
 }

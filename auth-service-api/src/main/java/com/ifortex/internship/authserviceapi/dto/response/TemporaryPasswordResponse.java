@@ -10,5 +10,6 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TemporaryPasswordResponse {
-  private String tempPassword;
+    private String tempPassword;
+    private int passwordExpirationH;
 }

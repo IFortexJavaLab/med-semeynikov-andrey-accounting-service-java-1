@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -13,28 +13,26 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.Instant;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
-@Table(name = "refresh_tokens")
+@Table(name = "paramedic")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class RefreshToken {
+public class Paramedic {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String token;
-    private Instant expiryDate;
-    private Instant createdAt = Instant.now();
-
-    @JsonBackReference
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", nullable = false, unique = true)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Account account;
 
+    @Column(nullable = false)
+    private Long bonusPolicyId;
 }

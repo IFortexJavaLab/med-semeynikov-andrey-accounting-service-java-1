@@ -1,29 +1,28 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.AdminDetailsDto;
-import com.ifortex.internship.authservice.dto.UserListViewDto;
+import com.ifortex.internship.authservice.dto.request.BlockUserRequest;
+import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
+import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
+import com.ifortex.internship.authservice.dto.request.UpdateUserDto;
+import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
+import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
+import com.ifortex.internship.authservice.dto.response.AuthResponse;
+import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
+import com.ifortex.internship.authservice.dto.response.ClientDto;
+import com.ifortex.internship.authservice.dto.response.SuccessResponse;
+import com.ifortex.internship.authservice.dto.response.UserListViewDto;
 import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
-import com.ifortex.internship.authservice.exception.custom.InternalAuthServiceException;
+import com.ifortex.internship.authservice.exception.custom.InternalServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.repository.AccountRepository;
-import com.ifortex.internship.authservice.stripe.service.StripeService;
 import com.ifortex.internship.authservice.util.UserMapper;
-import com.ifortex.internship.authserviceapi.dto.request.BlockUserRequest;
-import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authserviceapi.dto.request.UnblockUserRequest;
-import com.ifortex.internship.authserviceapi.dto.request.UpdateUserDto;
-import com.ifortex.internship.authserviceapi.dto.request.UserSearchRequest;
-import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
-import com.ifortex.internship.authserviceapi.dto.response.ClientDto;
-import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import com.stripe.exception.StripeException;
 import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityManager;
@@ -326,7 +325,7 @@ public class AccountService {
             log.error(
                 "Stripe API call failed: {}. Error code: {}. StackTrace: ",
                 e.getMessage(), e.getCode(), e);
-            throw new InternalAuthServiceException(
+            throw new InternalServiceException(
                 String.format(
                     "Error occurred while deleting stripe customer account with account ID: %s", account.getAccountId()));
         }

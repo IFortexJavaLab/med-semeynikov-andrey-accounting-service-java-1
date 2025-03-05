@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.model;
 
-import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
+import com.ifortex.internship.authservice.model.stripe.StripeSubscription;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

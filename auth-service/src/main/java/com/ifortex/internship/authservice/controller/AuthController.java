@@ -1,13 +1,13 @@
 package com.ifortex.internship.authservice.controller;
 
+import com.ifortex.internship.authservice.dto.request.LoginRequest;
+import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
+import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authservice.dto.response.AuthResponse;
+import com.ifortex.internship.authservice.dto.response.TokensResponse;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.ClientService;
 import com.ifortex.internship.authservice.service.TokenService;
-import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
-import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

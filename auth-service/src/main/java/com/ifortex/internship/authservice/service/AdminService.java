@@ -1,7 +1,9 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.AdminDetailsDto;
-import com.ifortex.internship.authservice.dto.CreatedAccountDto;
+import com.ifortex.internship.authservice.dto.request.CreateAdminRequest;
+import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
+import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
+import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.AccountRole;
@@ -9,8 +11,6 @@ import com.ifortex.internship.authservice.model.Admin;
 import com.ifortex.internship.authservice.model.constant.RoleType;
 import com.ifortex.internship.authservice.repository.AccountRoleRepository;
 import com.ifortex.internship.authservice.repository.AdminRepository;
-import com.ifortex.internship.authserviceapi.dto.request.CreateAdminRequest;
-import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

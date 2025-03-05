@@ -1,16 +1,15 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.CreatedAccountDto;
+import com.ifortex.internship.authservice.dto.request.CreateClientRequest;
+import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
+import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
+import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.AccountRole;
 import com.ifortex.internship.authservice.model.Client;
 import com.ifortex.internship.authservice.model.constant.RoleType;
 import com.ifortex.internship.authservice.repository.AccountRoleRepository;
 import com.ifortex.internship.authservice.repository.ClientRepository;
-import com.ifortex.internship.authservice.stripe.service.StripeService;
-import com.ifortex.internship.authserviceapi.dto.request.CreateClientRequest;
-import com.ifortex.internship.authserviceapi.dto.request.RegistrationRequest;
-import com.ifortex.internship.authserviceapi.dto.response.CreateUserResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

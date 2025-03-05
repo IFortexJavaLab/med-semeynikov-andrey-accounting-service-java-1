@@ -1,5 +1,6 @@
 package com.ifortex.internship.authservice.email;
 
+import com.ifortex.internship.authservice.exception.custom.InternalServiceException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -26,16 +27,8 @@ public class EmailService {
     @Value("${spring.mail.username}")
     private String emailUsername;
 
-    /**
-     * Sends a verification email containing a one-time password (OTP) to the specified email address.
-     *
-     * @param to      the recipient's email address
-     * @param subject the subject of the email
-     * @param otp     the one-time password (OTP) to be included in the email body
-     * @throws MessagingException if an error occurs while sending the email
-     */
     public void sendVerificationEmail(String to, String subject, String otp)
-            throws MessagingException {
+        throws MessagingException {
 
         log.debug("Sending verification email with subject '{}' to: {}", subject, to);
 
@@ -47,16 +40,8 @@ public class EmailService {
         sendEmail(to, subject, template, replacements);
     }
 
-    /**
-     * Sends a password reset request email with a link for the recipient to reset their password.
-     *
-     * @param to        the recipient's email address
-     * @param subject   the subject of the email
-     * @param resetLink the link to reset the password
-     * @throws MessagingException if an error occurs while sending the email
-     */
     public void sendPasswordResetRequestEmail(String to, String subject, String resetLink)
-            throws MessagingException {
+        throws MessagingException {
 
         log.debug("Sending password reset email with subject '{}' to: {}", subject, to);
 
@@ -67,19 +52,9 @@ public class EmailService {
         sendEmail(to, subject, template, replacements);
     }
 
-    /**
-     * Sends an email to the specified recipient with a given subject and HTML body template,
-     * replacing placeholders with specified values.
-     *
-     * @param to           the recipient's email address
-     * @param subject      the subject of the email
-     * @param template     the HTML email template
-     * @param replacements a map containing the placeholder values to replace in the template
-     * @throws MessagingException if an error occurs while sending the email
-     */
     private void sendEmail(
-            String to, String subject, String template, Map<String, String> replacements)
-            throws MessagingException {
+        String to, String subject, String template, Map<String, String> replacements)
+        throws MessagingException {
         String htmlMessage = populateTemplate(template, replacements);
 
         MimeMessage message = emailSender.createMimeMessage();
@@ -95,29 +70,16 @@ public class EmailService {
         log.debug("Email was sent to email: {}", to);
     }
 
-    /**
-     * Loads an email template from the classpath.
-     *
-     * @param fileName the name of the email template file
-     * @return the content of the email template as a string
-     * @throws RuntimeException if an error occurs while reading the template file
-     */
     private String loadEmailTemplate(String fileName) {
         try {
             Path path = new ClassPathResource("templates/" + fileName).getFile().toPath();
             return Files.readString(path);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load email template: " + fileName, e);
+            throw new InternalServiceException(
+                String.format("Failed to load email template: %s. Details: %s", fileName, e.getMessage()));
         }
     }
 
-    /**
-     * Replaces placeholders in the email template with actual values.
-     *
-     * @param template the email template with placeholders
-     * @param values   a map of placeholder values
-     * @return the email template with placeholders replaced by the corresponding values
-     */
     private String populateTemplate(String template, Map<String, String> values) {
         for (Map.Entry<String, String> entry : values.entrySet()) {
             template = template.replace("{{" + entry.getKey() + "}}", entry.getValue());

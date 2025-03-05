@@ -1,7 +1,13 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.AdminDetailsDto;
-import com.ifortex.internship.authservice.dto.CreatedAccountDto;
+import com.ifortex.internship.authservice.dto.request.LoginRequest;
+import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
+import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
+import com.ifortex.internship.authservice.dto.response.AuthResponse;
+import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
+import com.ifortex.internship.authservice.dto.response.SuccessResponse;
+import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse;
+import com.ifortex.internship.authservice.dto.response.TokensResponse;
 import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
@@ -18,12 +24,6 @@ import com.ifortex.internship.authservice.model.constant.RoleType;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
 import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
-import com.ifortex.internship.authserviceapi.dto.request.LoginRequest;
-import com.ifortex.internship.authserviceapi.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
-import com.ifortex.internship.authserviceapi.dto.response.TemporaryPasswordResponse;
-import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -173,7 +173,9 @@ public class AuthService {
 
     public List<String> getUserRolesFromAuthentication() {
         UserDetailsImpl principle = validateAuthenticatedUser();
-        return principle.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList();
+        return principle.getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority)
+            .toList();
     }
 
     public AdminDetailsDto getAdminDetailsFromAuthentication() {

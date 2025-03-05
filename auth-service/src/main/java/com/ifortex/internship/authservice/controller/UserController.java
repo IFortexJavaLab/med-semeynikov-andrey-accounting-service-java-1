@@ -1,15 +1,15 @@
 package com.ifortex.internship.authservice.controller;
 
+import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
+import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authservice.dto.request.UpdateUserDto;
+import com.ifortex.internship.authservice.dto.response.AuthResponse;
+import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
+import com.ifortex.internship.authservice.dto.response.ClientDto;
+import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.AccountService;
 import com.ifortex.internship.authservice.service.AuthService;
-import com.ifortex.internship.authserviceapi.dto.request.ChangePasswordRequest;
-import com.ifortex.internship.authserviceapi.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authserviceapi.dto.request.UpdateUserDto;
-import com.ifortex.internship.authserviceapi.dto.response.AuthResponse;
-import com.ifortex.internship.authserviceapi.dto.response.ChangeEmailResponse;
-import com.ifortex.internship.authserviceapi.dto.response.ClientDto;
-import com.ifortex.internship.authserviceapi.dto.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;

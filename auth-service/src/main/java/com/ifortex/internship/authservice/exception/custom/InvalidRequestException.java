@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(HttpStatus.BAD_REQUEST)
 public class InvalidRequestException extends AuthServiceException {
-  public InvalidRequestException(String msg) {
-    super(msg);
-  }
+    public InvalidRequestException(String msg) {
+        super(msg);
+    }
 }

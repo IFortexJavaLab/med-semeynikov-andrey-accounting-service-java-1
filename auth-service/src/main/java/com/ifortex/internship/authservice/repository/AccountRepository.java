@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.repository;
 
-import com.ifortex.internship.authservice.dto.UserListViewDto;
+import com.ifortex.internship.authservice.dto.response.UserListViewDto;
 import com.ifortex.internship.authservice.model.Account;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,7 +21,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByAccountId(UUID accountId);
 
     @Query("""
-            select new com.ifortex.internship.authservice.dto.UserListViewDto(
+            select new com.ifortex.internship.authservice.dto.response.UserListViewDto(
             a.accountId, a.email, a.firstName, a.lastName, ar.roleType)
             FROM Account a
             LEFT JOIN AccountRole ar ON a.id = ar.account.id
@@ -54,6 +54,4 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
         @Param("utcNow") Instant utcNow,
         Pageable pageable
     );
-
-    //needed review for this query
 }

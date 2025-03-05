@@ -1,8 +1,8 @@
 package com.ifortex.internship.authservice.util;
 
+import com.ifortex.internship.authservice.dto.request.UpdateUserDto;
+import com.ifortex.internship.authservice.dto.response.ClientDto;
 import com.ifortex.internship.authservice.model.Account;
-import com.ifortex.internship.authserviceapi.dto.request.UpdateUserDto;
-import com.ifortex.internship.authserviceapi.dto.response.ClientDto;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

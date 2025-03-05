@@ -1,5 +1,6 @@
 package com.ifortex.internship.authservice.service;
 
+import com.ifortex.internship.authservice.dto.response.TokensResponse;
 import com.ifortex.internship.authservice.exception.AuthServiceException;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
@@ -10,12 +11,11 @@ import com.ifortex.internship.authservice.model.Admin;
 import com.ifortex.internship.authservice.model.Client;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.constant.RoleType;
+import com.ifortex.internship.authservice.model.stripe.StripeSubscription;
+import com.ifortex.internship.authservice.model.stripe.SubscriptionStatus;
 import com.ifortex.internship.authservice.repository.AccountRoleRepository;
 import com.ifortex.internship.authservice.repository.AdminRepository;
 import com.ifortex.internship.authservice.repository.ClientRepository;
-import com.ifortex.internship.authservice.stripe.model.StripeSubscription;
-import com.ifortex.internship.authservice.stripe.model.SubscriptionStatus;
-import com.ifortex.internship.authserviceapi.dto.response.TokensResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
@@ -27,7 +27,6 @@ import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
@@ -257,7 +256,7 @@ public class TokenService {
             .map(date -> LocalDateTime.ofEpochSecond(date, 0, ZoneOffset.UTC));
     }
 
-    public Collection<? extends GrantedAuthority> getAuthorityFromToken(String token) {
+    public Collection<SimpleGrantedAuthority> getAuthorityFromToken(String token) {
 
         log.debug("Getting authorities from access token");
 

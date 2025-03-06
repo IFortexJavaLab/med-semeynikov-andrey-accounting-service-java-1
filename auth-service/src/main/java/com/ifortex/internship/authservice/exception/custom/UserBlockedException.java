@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(HttpStatus.FORBIDDEN)
 public class UserBlockedException extends AuthServiceException {
-  public UserBlockedException(String message) {
-    super(message);
-  }
+    public UserBlockedException(String message) {
+        super(message);
+    }
 }

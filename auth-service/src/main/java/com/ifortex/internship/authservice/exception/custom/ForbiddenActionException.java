@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(HttpStatus.FORBIDDEN)
 public class ForbiddenActionException extends AuthServiceException {
-  public ForbiddenActionException(String message) {
-    super(message);
-  }
+    public ForbiddenActionException(String message) {
+        super(message);
+    }
 }

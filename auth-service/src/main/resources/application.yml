@@ -7,6 +7,8 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        jdbc:
+          time_zone: UTC
         format_sql: true
     show-sql: true
 
@@ -41,6 +43,7 @@ app:
   refreshTokenExpirationS: 604800
   jwtExpirationS: 3600
   otp:
+    resetPasswordExpirationMinutes: 5
     loginExpirationMinutes: 5
     emailExpirationMinutes: 60
   tempPassword:

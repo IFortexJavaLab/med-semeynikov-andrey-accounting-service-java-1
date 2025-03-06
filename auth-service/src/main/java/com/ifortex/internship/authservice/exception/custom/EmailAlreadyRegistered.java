@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(HttpStatus.CONFLICT)
 public class EmailAlreadyRegistered extends AuthServiceException {
-  public EmailAlreadyRegistered(String message) {
-    super(message);
-  }
+    public EmailAlreadyRegistered(String message) {
+        super(message);
+    }
 }

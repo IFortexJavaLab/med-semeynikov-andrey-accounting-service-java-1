@@ -3,10 +3,11 @@ package com.ifortex.internship.authservice.controller;
 import com.ifortex.internship.authservice.dto.request.BlockUserRequest;
 import com.ifortex.internship.authservice.dto.request.CreateAdminRequest;
 import com.ifortex.internship.authservice.dto.request.CreateClientRequest;
+import com.ifortex.internship.authservice.dto.request.CreateParamedicRequest;
 import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
-import com.ifortex.internship.authservice.dto.request.UpdateUserDto;
+import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
 import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
-import com.ifortex.internship.authservice.dto.response.ClientDto;
+import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse;
@@ -15,13 +16,16 @@ import com.ifortex.internship.authservice.service.AccountService;
 import com.ifortex.internship.authservice.service.AdminService;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.ClientService;
+import com.ifortex.internship.authservice.service.ParamedicService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -41,6 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Validated
 @Slf4j
 @RestController
@@ -50,28 +55,27 @@ import java.util.UUID;
 @Tag(name = "Admin functions API")
 public class AdminController {
 
-    private final AuthService authService;
-    private final AccountService userService;
-    private final AccountService accountService;
-    private final ClientService clientService;
-    private final AdminService adminService;
-
-    //todo takeout logs to static fields
+    final AuthService authService;
+    final AccountService userService;
+    final AccountService accountService;
+    final ClientService clientService;
+    final AdminService adminService;
+    private final ParamedicService paramedicService;
 
     @Operation(summary = "Update user profile", description = "Allows admins to update user information.")
     @PatchMapping("{accountId}")
-    public ResponseEntity<ClientDto> updateUser(
+    public ResponseEntity<AccountDto> updateProfile(
         @PathVariable("accountId") UUID accountId,
-        @RequestBody UpdateUserDto updateUserDto) {
+        @RequestBody UpdateAccountDto updateAccountDto) {
 
         log.info("Attempt to update account with ID: {}", accountId);
-        ClientDto updatedUser = userService.updateUserByAdmin(accountId, updateUserDto);
+        AccountDto updatedUser = userService.updateAccountByAdmin(accountId, updateAccountDto);
         return ResponseEntity.ok(updatedUser);
     }
 
     @Operation(summary = "Get user's profile by ID")
     @GetMapping("/{accountId}")
-    public ResponseEntity<ClientDto> getUserProfileById(@PathVariable UUID accountId) {
+    public ResponseEntity<AccountDto> getUserProfileById(@PathVariable UUID accountId) {
 
         log.info("Attempt to get account profile by ID: {}", accountId);
         var fullUser = userService.getUserProfileById(accountId);
@@ -112,6 +116,15 @@ public class AdminController {
     public ResponseEntity<CreateUserResponse> createClient(@RequestBody @Valid CreateClientRequest request) {
 
         CreateUserResponse response = clientService.createClient(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(summary = "Creates new paramedic")
+    @PostMapping("/medic")
+    public ResponseEntity<CreateUserResponse> createParamedic(@RequestBody @Valid CreateParamedicRequest request) {
+
+        CreateUserResponse response = paramedicService.createParamedic(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

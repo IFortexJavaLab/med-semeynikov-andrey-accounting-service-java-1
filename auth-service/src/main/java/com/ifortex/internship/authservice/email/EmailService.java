@@ -3,7 +3,9 @@ package com.ifortex.internship.authservice.email;
 import com.ifortex.internship.authservice.exception.custom.InternalServiceException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
@@ -17,15 +19,15 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
 
-    private final JavaMailSender emailSender;
+    final JavaMailSender emailSender;
 
-    @Value("${spring.mail.username}")
-    private String emailUsername;
+    @Value("${spring.mail.username}") final String emailUsername;
 
     public void sendVerificationEmail(String to, String subject, String otp)
         throws MessagingException {

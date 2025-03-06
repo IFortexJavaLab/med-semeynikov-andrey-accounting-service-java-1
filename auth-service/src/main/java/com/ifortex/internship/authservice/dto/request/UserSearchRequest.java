@@ -9,7 +9,7 @@ import lombok.experimental.FieldDefaults;
 @Getter
 @Setter
 public class UserSearchRequest {
-    private String searchText;
+    String searchText;
     boolean admins;
     boolean clients;
     boolean medics;

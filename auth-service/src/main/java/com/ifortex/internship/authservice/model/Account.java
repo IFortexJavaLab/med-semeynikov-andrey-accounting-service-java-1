@@ -8,6 +8,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -51,7 +53,7 @@ public class Account {
     private String passwordHash;
 
     @JsonManagedReference
-    @OneToOne(mappedBy = "account", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
+    @OneToOne(mappedBy = "account", cascade = CascadeType.ALL, orphanRemoval = true)
     private TemporaryPassword temporaryPassword;
 
     @Column(nullable = false)
@@ -77,7 +79,7 @@ public class Account {
     @OneToOne(mappedBy = "account", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private RefreshToken refreshToken;
 
-    @JsonManagedReference
-    @OneToOne(mappedBy = "account", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private AccountRole accountRole;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id", nullable = false)
+    private Role role;
 }

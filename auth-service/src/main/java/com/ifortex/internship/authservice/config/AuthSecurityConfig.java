@@ -52,6 +52,7 @@ public class AuthSecurityConfig {
                         .requestMatchers("/api/v1/auth-service/users/**").authenticated()
                         .requestMatchers("/api/v1/accounting/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/subscription/plans").permitAll()
+                        .requestMatchers("/api/v1/subscription/**").hasRole("CLIENT")
                         .requestMatchers("/api/v1/subscription/webhooks").permitAll()
                         .requestMatchers("/api/v1/subscription/**").authenticated()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs*/**").permitAll()

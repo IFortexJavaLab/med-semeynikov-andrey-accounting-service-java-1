@@ -4,12 +4,13 @@ import com.ifortex.internship.authservice.dto.request.BlockUserRequest;
 import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
-import com.ifortex.internship.authservice.dto.request.UpdateUserDto;
+import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
 import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
+import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
-import com.ifortex.internship.authservice.dto.response.ClientDto;
+import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.UserListViewDto;
 import com.ifortex.internship.authservice.email.EmailService;
@@ -20,18 +21,22 @@ import com.ifortex.internship.authservice.exception.custom.ForbiddenActionExcept
 import com.ifortex.internship.authservice.exception.custom.InternalServiceException;
 import com.ifortex.internship.authservice.exception.custom.InvalidRequestException;
 import com.ifortex.internship.authservice.model.Account;
+import com.ifortex.internship.authservice.model.Role;
+import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.repository.AccountRepository;
+import com.ifortex.internship.authservice.util.PasswordGenerator;
 import com.ifortex.internship.authservice.util.UserMapper;
 import com.stripe.exception.StripeException;
 import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Session;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,35 +48,68 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountService {
 
-    private static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
+    static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
 
-    private final StripeService stripeService;
-    private final AccountRepository accountRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthService authService;
-    private final RedisService redisService;
-    private final EmailService emailService;
-    private final Environment environment;
-    private final CustomAuthenticationProvider authenticationProvider;
-    private final UserMapper userMapper;
+    final StripeService stripeService;
+    final AccountRepository accountRepository;
+    final PasswordEncoder passwordEncoder;
+    final AuthService authService;
+    final RedisService redisService;
+    final EmailService emailService;
 
-    private final Random random = new Random();
+    final CustomAuthenticationProvider authenticationProvider;
+    final UserMapper userMapper;
+
+    final Random random = new Random();
+    private final PasswordGenerator passwordGenerator;
 
     @PersistenceContext
-    private EntityManager entityManager;
+    EntityManager entityManager;
 
-    @Value("${app.otp.emailExpirationMinutes}")
-    private int expirationMinutes;
-    @Value("${app.otp.resetPasswordExpirationMinutes}")
-    private int resetPasswordExpirationMinutes;
-    @Value("${app.link.login}")
-    private String loginLink;
+    @Value("${app.link.login}") final String loginLink;
+    @Value("${app.link.changeEmail}") final String changeEmailLink;
+    @Value("${app.otp.emailExpirationMinutes}") final int expirationMinutes;
+    @Value("${app.link.resetPasswordConfirm}") final String resetPasswordLink;
+    @Value("${app.otp.resetPasswordExpirationMinutes}") int resetPasswordExpirationMinutes;
+    @Value("${app.tempPassword.expirationHours}") final int tempPasswordExpirationHours;
+
+    @Transactional
+    public CreatedAccountDto createAccount(String email, String password, Role role) {
+
+        log.debug("Creating account with email: {}", email);
+
+        Account account =
+            new Account()
+                .setAccountId(UUID.randomUUID())
+                .setEmail(email)
+                .setRole(role);
+
+        String hashedPassword;
+        if (password == null) {
+
+            password = passwordGenerator.generateTempPassword();
+            hashedPassword = passwordEncoder.encode(password);
+            TemporaryPassword temporaryPassword =
+                new TemporaryPassword(account, hashedPassword,
+                    Instant.now().plusSeconds(TimeUnit.HOURS.toSeconds(tempPasswordExpirationHours)));
+            account.setTemporaryPassword(temporaryPassword);
+
+        } else {
+            hashedPassword = passwordEncoder.encode(password);
+            account.setPasswordHash(hashedPassword);
+        }
+        accountRepository.save(account);
+
+        return new CreatedAccountDto(account, password, tempPasswordExpirationHours);
+    }
 
     @Transactional
     public AuthResponse changePassword(ChangePasswordRequest request, String userEmail) {
@@ -144,7 +182,6 @@ public class AccountService {
             throw new EmailSendException("Failed to send verification email");
         }
 
-        String changeEmailLink = environment.getProperty("app.link.changeEmail");
         String message =
             String.format(
                 "An email with a change email code has been sent to your email: %s, please follow this link:",
@@ -213,7 +250,6 @@ public class AccountService {
             throw new EmailSendException(String.format("Failed to send verification email to the: %s", email));
         }
 
-        String resetPasswordLink = environment.getProperty("app.link.resetPasswordConfirm");
         String message = String.format("An email with a password reset code has been sent to your email: %s, please follow this link: ", email);
 
         return new SuccessResponse(message, resetPasswordLink);
@@ -318,7 +354,6 @@ public class AccountService {
         var account = findAccountByAccountId(accountId);
         validateSelfModification(account, "hard delete");
 
-        //todo немного опасно, но попробуем
         try {
             stripeService.deleteUser(accountId);
         } catch (StripeException e) {
@@ -365,7 +400,7 @@ public class AccountService {
                 });
     }
 
-    public ClientDto getUserProfileByAuthentication() {
+    public AccountDto getUserProfileByAuthentication() {
 
         UUID userId = authService.getAccountIdFromAuthentication();
         log.info("Getting user profile for user with ID: {}", userId);
@@ -379,13 +414,13 @@ public class AccountService {
     }
 
     @Transactional
-    public ClientDto updateUserByAuthentication(UpdateUserDto updateUserDto) {
+    public AccountDto updateUserByAuthentication(UpdateAccountDto updateAccountDto) {
 
         UUID accountId = authService.getAccountIdFromAuthentication();
         log.info("Updating account with ID: {}", accountId);
 
         var account = findAccountByAccountId(accountId);
-        userMapper.updateAccountFromDto(updateUserDto, account);
+        userMapper.updateAccountFromDto(updateAccountDto, account);
 
         accountRepository.save(account);
         log.debug("Account with ID: {} successfully updated in database", accountId);
@@ -396,28 +431,28 @@ public class AccountService {
     }
 
     @Transactional
-    public ClientDto updateUserByAdmin(UUID accountId, UpdateUserDto updateUserDto) {
+    public AccountDto updateAccountByAdmin(UUID targetAccountId, UpdateAccountDto updateAccountDto) {
 
-        var adminId = authService.getAccountIdFromAuthentication();
+        var adminDetails = authService.getAdminDetailsFromAuthentication();
 
-        log.debug("Updating account with ID: {} by admin with ID: {}", accountId, adminId);
-        var account = findAccountByAccountId(accountId);
+        log.debug("Updating account with ID: {} by admin with ID: {}", targetAccountId, adminDetails.getAccountId());
+        var targetAccount = findAccountByAccountId(targetAccountId);
 
-        //todo add check permission to edit target account
+        authService.validateUserModificationPermission(adminDetails, targetAccount);
 
-        userMapper.updateAccountFromDto(updateUserDto, account);
+        userMapper.updateAccountFromDto(updateAccountDto, targetAccount);
 
-        accountRepository.save(account);
-        log.debug("Account with ID: {} saved to db", accountId);
+        accountRepository.save(targetAccount);
+        log.debug("Account with ID: {} saved to db", targetAccountId);
 
-        log.info("Account with ID: {} updated successfully", accountId);
+        log.info("Account with ID: {} updated successfully", targetAccountId);
 
-        return userMapper.userToClientDto(account);
+        return userMapper.userToClientDto(targetAccount);
     }
 
-    public ClientDto getUserProfileById(UUID accountId) {
+    public AccountDto getUserProfileById(UUID accountId) {
 
-        //todo think about how to get specific data of the each type of the user
+        //todo add specific data for each role
 
         var adminId = authService.getAccountIdFromAuthentication();
         log.info("Getting account profile for user with ID: {} by Admin with ID: {}", accountId, adminId);

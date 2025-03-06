@@ -4,7 +4,6 @@ import com.ifortex.internship.authservice.dto.request.LoginRequest;
 import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
 import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
-import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse;
 import com.ifortex.internship.authservice.dto.response.TokensResponse;
@@ -20,18 +19,19 @@ import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
-import com.ifortex.internship.authservice.model.constant.RoleType;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
 import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
+import com.ifortex.internship.authservice.util.PasswordGenerator;
 import jakarta.mail.MessagingException;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,48 +39,37 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-//todo split this class
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
-    private static final String LOG_REFRESH_TOKEN_DELETED = "Refresh token deleted successfully for user: {}";
-    private static final String LOG_EMAIL_ALREADY_REGISTERED = "Email: {} is already registered";
+    static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
+    static final String LOG_REFRESH_TOKEN_DELETED = "Refresh token deleted successfully for user: {}";
+    static final String LOG_EMAIL_ALREADY_REGISTERED = "Email: {} is already registered";
 
-    private static final String UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    private static final String DIGITS = "0123456789";
-    private static final String SPECIAL_CHARACTERS = "@$!%*?&#";
-    private static final String ALL_ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&#";
+    static final int ROLE_LENGTH = 5;
 
-    private static final int ROLE_LENGTH = 5;
+    final CustomAuthenticationProvider authenticationProvider;
+    final TemporaryPasswordRepository passwordRepository;
+    final RefreshTokenRepository refreshTokenRepository;
+    final AccountRepository accountRepository;
+    final PasswordEncoder passwordEncoder;
+    final TokenService tokenService;
+    final EmailService emailService;
+    final RedisService redisService;
 
-    private final CustomAuthenticationProvider authenticationProvider;
-    private final TemporaryPasswordRepository passwordRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final AccountRepository accountRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final TokenService tokenService;
-    private final EmailService emailService;
-    private final RedisService redisService;
-    private final Environment environment;
-
-    private final Random random = new Random();
-
-    @Value("${app.otp.loginExpirationMinutes}")
-    private int loginOtpExpirationMinutes;
-    @Value("${app.tempPassword.expirationHours}")
-    private int tempPasswordExpirationHours;
-    @Value("${app.link.resetPasswordEmail}")
-    private String resetLink;
-
-    //todo maybe transfer to clientService
+    @Value("${app.otp.loginExpirationMinutes}") final int loginOtpExpirationMinutes;
+    @Value("${app.tempPassword.expirationHours}") final int tempPasswordExpirationHours;
+    @Value("${app.link.resetPasswordEmail}") final String resetLink;
+    @Value("${app.link.verifyOtpLogin}") final String verifyOtpLink;
+    @Value("${app.jwtExpirationS}") final Long jwtExpirationS;
+    @Value("${app.refreshTokenExpirationS}") final Long refreshTokenExpirationS;
+    private final PasswordGenerator passwordGenerator;
 
     public AuthResponse authenticateUser(LoginRequest loginRequest) {
 
@@ -99,7 +88,7 @@ public class AuthService {
         if (account.isTwoFactorEnabled()) {
             log.debug("User: {} has 2FA enabled. Sending OTP", accountEmail);
 
-            String otp = generateOtp();
+            String otp = passwordGenerator.generateOtp();
             String redisKey = RedisKeyPrefix.LOGIN_OTP.getPrefix() + accountEmail;
             redisService.saveOtp(redisKey, otp, loginOtpExpirationMinutes);
             log.debug("Otp for user: {} generated and saved successfully", accountEmail);
@@ -112,7 +101,6 @@ public class AuthService {
                 throw new EmailSendException(String.format("Failed to send 2FA verification email to the: %s", accountEmail));
             }
 
-            String verifyOtpLink = environment.getProperty("app.link.verifyOtpLogin");
             String
                 message =
                 String.format("Two-factor authentication is required to complete your login. A verification code has been sent "
@@ -171,24 +159,17 @@ public class AuthService {
         return principle.getAccountId();
     }
 
-    public List<String> getUserRolesFromAuthentication() {
-        UserDetailsImpl principle = validateAuthenticatedUser();
-        return principle.getAuthorities().stream()
-            .map(GrantedAuthority::getAuthority)
-            .toList();
-    }
-
     public AdminDetailsDto getAdminDetailsFromAuthentication() {
         UserDetailsImpl principle = validateAuthenticatedUser();
-        List<RoleType> role = principle.
+        List<UserRole> roles = principle.
             getAuthorities().stream()
             .map(authority ->
-                RoleType.valueOf(authority.getAuthority().substring(ROLE_LENGTH)))
+                UserRole.valueOf(authority.getAuthority().substring(ROLE_LENGTH)))
             .toList();
 
-        RoleType roleType = null;
-        if (!role.isEmpty()) {
-            roleType = role.getFirst();
+        UserRole roleType = null;
+        if (!roles.isEmpty()) {
+            roleType = roles.getFirst();
         }
         return new AdminDetailsDto(principle.getAccountId(),
             principle.getEmail(), roleType, principle.getIsSuperAdmin());
@@ -209,7 +190,7 @@ public class AuthService {
 
         deleteOldTemporaryPassword(account);
 
-        String tempPassword = generateTempPassword();
+        String tempPassword = passwordGenerator.generateTempPassword();
         String hashedPassword = passwordEncoder.encode(tempPassword);
         var temporaryPassword =
             new TemporaryPassword(
@@ -234,7 +215,7 @@ public class AuthService {
 
         UUID editorAccountId = changer.getAccountId();
         UUID targetAccountId = targetAccount.getAccountId();
-        RoleType targetRole = targetAccount.getAccountRole().getRoleType();
+        UserRole targetRole = targetAccount.getRole().getName();
 
         log.debug("Validating user modification permission. Editor ID: {}, Target ID: {}, Target Role: {}",
             editorAccountId, targetAccountId, targetRole);
@@ -246,8 +227,8 @@ public class AuthService {
 
         boolean
             isTargetUserClientOrParamedic =
-            targetAccount.getAccountRole().getRoleType().equals(RoleType.CLIENT) ||
-            targetAccount.getAccountRole().getRoleType().equals(RoleType.PARAMEDIC);
+            targetAccount.getRole().getName().equals(UserRole.CLIENT) ||
+            targetAccount.getRole().getName().equals(UserRole.PARAMEDIC);
 
         if (!isTargetUserClientOrParamedic) {
             log.error("Permission denied. Editor ID: {}, Target ID: {}, Target Role: {}",
@@ -318,30 +299,9 @@ public class AuthService {
 
         RefreshToken newRefreshToken = tokenService.createRefreshToken(account.getEmail());
 
-        Long jwtExpirationS = Long.valueOf(Objects.requireNonNull(environment.getProperty("app.jwtExpirationS")));
-        Long refreshTokenExpirationS = Long.valueOf(Objects.requireNonNull(environment.getProperty("app.refreshTokenExpirationS")));
-
         return AuthResponse.builder()
             .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS))
             .build();
-    }
-
-    private String generateTempPassword() {
-
-        int length = 8;
-
-        char upper = UPPERCASE.charAt(random.nextInt(UPPERCASE.length()));
-        char digit = DIGITS.charAt(random.nextInt(DIGITS.length()));
-        char special = SPECIAL_CHARACTERS.charAt(random.nextInt(SPECIAL_CHARACTERS.length()));
-
-        StringBuilder password = new StringBuilder();
-        password.append(upper).append(digit).append(special);
-        for (int i = 3; i < length; i++) {
-            password.append(ALL_ALLOWED.charAt(random.nextInt(ALL_ALLOWED.length())));
-        }
-
-        log.debug("Temporary password generated successfully");
-        return password.toString();
     }
 
     public void validateEmailNotRegistered(String email) {
@@ -351,33 +311,4 @@ public class AuthService {
         }
     }
 
-    public CreatedAccountDto createAccount(String email, String password) {
-
-        Account account =
-            new Account()
-                .setAccountId(UUID.randomUUID())
-                .setEmail(email);
-
-        String hashedPassword = null;
-        if (password == null) {
-
-            password = generateTempPassword();
-            TemporaryPassword temporaryPassword =
-                new TemporaryPassword(account, hashedPassword,
-                    Instant.now().plusSeconds(TimeUnit.HOURS.toSeconds(tempPasswordExpirationHours)));
-            account.setTemporaryPassword(temporaryPassword);
-
-        } else {
-            hashedPassword = passwordEncoder.encode(password);
-            account.setPasswordHash(hashedPassword);
-        }
-        accountRepository.save(account);
-
-        return new CreatedAccountDto(account, password, tempPasswordExpirationHours);
-    }
-
-    public String generateOtp() {
-        int code = random.nextInt(900000) + 100000;
-        return String.valueOf(code);
-    }
 }

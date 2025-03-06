@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.dto.response;
 
-import com.ifortex.internship.authservice.model.constant.RoleType;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,6 +20,6 @@ public class UserListViewDto {
     String email;
     String firstName;
     String lastName;
-    RoleType role;
+    UserRole role;
 
 }

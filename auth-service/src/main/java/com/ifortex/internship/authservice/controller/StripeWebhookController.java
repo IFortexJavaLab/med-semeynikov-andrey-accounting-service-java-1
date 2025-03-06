@@ -7,7 +7,9 @@ import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
 import com.stripe.net.Webhook;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -17,16 +19,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/subscription")
 @RequiredArgsConstructor
 public class StripeWebhookController {
 
-    private final StripeWebhookService stripeWebhookService;
+    final StripeWebhookService stripeWebhookService;
 
-    @Value("${app.stripe.api.webhook.secret}")
-    private String endpointSecret;
+    @Value("${app.stripe.api.webhook.secret}") final String endpointSecret;
 
     @PostMapping("/webhooks")
     public ResponseEntity<String> handleStripeWebhook(
@@ -69,6 +71,8 @@ public class StripeWebhookController {
                 } else {
                     log.warn("Unable to deserialize Stripe subscription object from event.");
                 }
+                break;
+            default:
                 break;
         }
 

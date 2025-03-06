@@ -5,11 +5,14 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,7 +21,7 @@ import lombok.Setter;
 public class RegistrationRequest {
     @Email(message = "Invalid email format")
     @NotBlank(message = "Email is required")
-    private String email;
+    String email;
 
     @NotBlank
     @Size(min = 8, message = "Password must be at least 8 characters long.")
@@ -26,7 +29,7 @@ public class RegistrationRequest {
         regexp = "^(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&#])[A-Za-z\\d@$!%*?&#]+$",
         message =
             "Password must contain at least 1 uppercase letter, 1 number, and 1 special character.")
-    private String password;
+    String password;
 
-    @NotBlank private String passwordConfirmation;
+    @NotBlank String passwordConfirmation;
 }

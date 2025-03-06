@@ -2,10 +2,10 @@ package com.ifortex.internship.authservice.controller;
 
 import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
-import com.ifortex.internship.authservice.dto.request.UpdateUserDto;
+import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
+import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
-import com.ifortex.internship.authservice.dto.response.ClientDto;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.AccountService;
@@ -45,8 +45,8 @@ public class UserController {
 
     @Operation(summary = "Update user", description = "Allows updating user information.")
     @PatchMapping
-    public ResponseEntity<ClientDto> updateUser(@RequestBody @Valid UpdateUserDto updateUserDto) {
-        var updatedUser = userService.updateUserByAuthentication(updateUserDto);
+    public ResponseEntity<AccountDto> updateUser(@RequestBody @Valid UpdateAccountDto updateAccountDto) {
+        var updatedUser = userService.updateUserByAuthentication(updateAccountDto);
         return ResponseEntity.ok().body(updatedUser);
     }
 
@@ -54,7 +54,7 @@ public class UserController {
         summary = "Get current user profile",
         description = "Retrieve detailed user information by authentication.")
     @GetMapping()
-    public ResponseEntity<ClientDto> getUserByAuth() {
+    public ResponseEntity<AccountDto> getUserByAuth() {
         return ResponseEntity.ok(userService.getUserProfileByAuthentication());
     }
 

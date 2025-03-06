@@ -3,26 +3,29 @@ package com.ifortex.internship.authservice.dto.request;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class UpdateUserDto {
+public class UpdateAccountDto {
 
     @Size(max = 100, message = "First name cannot exceed 100 characters")
-    private String firstName;
+    String firstName;
 
     @Size(max = 100, message = "Last name cannot exceed 100 characters")
-    private String lastName;
+    String lastName;
 
     @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format")
-    private String phoneNumber;
+    String phoneNumber;
 
-    private Boolean isTwoFactorEnabled;
+    Boolean isTwoFactorEnabled;
 }

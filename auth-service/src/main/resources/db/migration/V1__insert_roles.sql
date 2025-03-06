@@ -1,12 +1,10 @@
-CREATE TABLE IF NOT EXISTS roles
+CREATE TABLE IF NOT EXISTS role
 (
     id   SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE
 );
 
-INSERT INTO roles (id, name)
-VALUES (1, 'ROLE_SUPER_ADMIN'),
-       (2, 'ROLE_ADMIN'),
-       (3, 'ROLE_PARAMEDIC'),
-       (4, 'ROLE_SUBSCRIBED_USER'),
-       (5, 'ROLE_NON_SUBSCRIBED_USER');
+INSERT INTO role (id, name)
+VALUES (1, 'ADMIN'),
+       (2, 'PARAMEDIC'),
+       (3, 'CLIENT')

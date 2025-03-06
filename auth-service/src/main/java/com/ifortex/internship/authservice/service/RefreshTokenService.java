@@ -18,27 +18,23 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-//todo logs to string variables
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final AccountRepository accountRepository;
 
-    private static final String LOG_CREATING_REFRESH_TOKEN = "Creating refresh token for account: {}";
-    private static final String LOG_ACCOUNT_NOT_FOUND = "Account {} not found";
-
     @Value("${app.refreshTokenExpirationS}")
-    private int refreshTokenDurationS;
+    private final int refreshTokenDurationS;
 
     @Transactional
     public RefreshToken createRefreshToken(String email) {
-        log.debug(LOG_CREATING_REFRESH_TOKEN, email);
+        log.debug("Creating refresh token for account: {}", email);
         Account account =
             accountRepository
                 .findByEmail(email)
                 .orElseThrow(
                     () -> {
-                        log.error(LOG_ACCOUNT_NOT_FOUND, email);
+                        log.error("Account {} not found", email);
                         return new EntityNotFoundException(String.format("Account %s not found", email));
                     });
 

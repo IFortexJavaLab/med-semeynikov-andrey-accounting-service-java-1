@@ -6,14 +6,12 @@ import com.ifortex.internship.authservice.exception.custom.AuthorizationExceptio
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.Account;
-import com.ifortex.internship.authservice.model.AccountRole;
 import com.ifortex.internship.authservice.model.Admin;
 import com.ifortex.internship.authservice.model.Client;
 import com.ifortex.internship.authservice.model.RefreshToken;
-import com.ifortex.internship.authservice.model.constant.RoleType;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.model.stripe.StripeSubscription;
 import com.ifortex.internship.authservice.model.stripe.SubscriptionStatus;
-import com.ifortex.internship.authservice.repository.AccountRoleRepository;
 import com.ifortex.internship.authservice.repository.AdminRepository;
 import com.ifortex.internship.authservice.repository.ClientRepository;
 import io.jsonwebtoken.Claims;
@@ -40,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 
 @Slf4j
@@ -48,44 +47,37 @@ import javax.crypto.SecretKey;
 public class TokenService {
 
     private final RefreshTokenService refreshTokenService;
-    private final AccountRoleRepository accountRoleRepository;
     private final ClientRepository clientRepository;
     private final AdminRepository adminRepository;
     @Value("${app.jwtSecret}")
-    private String jwtSecret;
+    private final String jwtSecret;
 
     @Value("${app.jwtExpirationS}")
-    private long jwtExpirationS;
+    private final long jwtExpirationS;
 
     @Value("${app.refreshTokenExpirationS}")
-    private long refreshTokenExpirationS;
+    private final long refreshTokenExpirationS;
 
-    private static final String LOG_ADMIN_NOT_FOUND = "Admin with local ID: {} for account with ID: {} not found";
-    private static final String LOG_CLIENT_NOT_FOUND = "Client with local ID: {} for account with ID: {} not found";
     private static final String HAS_ACTIVE_SUBSCRIPTION_CLAIM = "hasActiveSubscription";
     private static final String IS_SUPER_ADMIN_CLAIM = "isSuperAdmin";
     private static final String ROLE = "ROLE_";
 
     public String generateAccessToken(Account account) {
 
-        AccountRole accountRole = accountRoleRepository.findByAccount(account)
-            .orElseThrow(() -> {
-                log.error("Account role not found for account: {}", account.getAccountId());
-                return new EntityNotFoundException("Role not found");
-            });
-
         Map<String, Object> claims = new HashMap<>();
         claims.put(HAS_ACTIVE_SUBSCRIPTION_CLAIM, false);
 
-        RoleType roleType = accountRole.getRoleType();
-        claims.put("role", roleType);
+        var role = account.getRole().getName();
+        UUID accountId = account.getAccountId();
 
-        switch (roleType) {
+        claims.put("role", role);
+
+        switch (role) {
             case CLIENT:
 
-                Client client = clientRepository.findById(accountRole.getRoleEntityId())
+                Client client = clientRepository.findByAccountId(accountId)
                     .orElseThrow(() -> {
-                        log.error(LOG_CLIENT_NOT_FOUND, accountRole.getRoleEntityId(), account.getAccountId());
+                        log.error("Client for account ID: {} not found", account.getAccountId());
                         return new EntityNotFoundException("Client not found");
                     });
 
@@ -110,16 +102,17 @@ public class TokenService {
                 break;
 
             case ADMIN:
-                Admin admin = adminRepository.findById(accountRole.getRoleEntityId())
+                Admin admin = adminRepository.findByAccountId(accountId)
                     .orElseThrow(() -> {
-                        log.error(LOG_ADMIN_NOT_FOUND, accountRole.getRoleEntityId(), account.getAccountId());
+                        log.error("Admin for account with ID: {} not found", account.getAccountId());
                         return new EntityNotFoundException("Admin not found");
                     });
                 claims.put(IS_SUPER_ADMIN_CLAIM, admin.isSuperAdmin());
                 break;
-        }
 
-        //
+            default:
+                break;
+        }
 
         claims.put("accountId", account.getAccountId());
         return Jwts.builder()
@@ -263,7 +256,7 @@ public class TokenService {
         final Claims claims =
             Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
 
-        RoleType role = RoleType.valueOf(claims.get("role", String.class));
+        UserRole role = UserRole.valueOf(claims.get("role", String.class));
 
         log.debug("Got roles from token: {}", role);
 

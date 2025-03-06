@@ -24,8 +24,6 @@ import com.stripe.param.PriceListParams;
 import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.SubscriptionListParams;
 import com.stripe.param.checkout.SessionCreateParams;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -37,28 +35,32 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class StripeService {
+
     private static final String LOG_STRIPE_FAILED = "Stripe API call failed: {}. Error code: {}. StackTrace: ";
 
     private final AuthService authService;
     private final SubscriptionRepository subscriptionRepository;
     private final ClientRepository clientRepository;
 
-    //todo скорее всего придется получать через environment
-    @Value("${app.stripe.api.key}")
-    private String stripeApiKey;
-
     @Value("${app.stripe.url.cancel}")
-    private String cancelLink;
-
+    private final String cancelLink;
     @Value("${app.stripe.url.success}")
-    private String successLink;
+    private final String successLink;
 
     private static final int CENTS_IN_DOLLAR = 100;
 
-    @PostConstruct
-    public void init() {
+    public StripeService(final AuthService authService,
+                         final SubscriptionRepository subscriptionRepository,
+                         final ClientRepository clientRepository,
+                         @Value("${app.stripe.api.key}") final String stripeApiKey,
+                         @Value("${app.stripe.url.cancel}") final String cancelLink,
+                         @Value("${app.stripe.url.success}") final String successLink) {
+        this.authService = authService;
+        this.subscriptionRepository = subscriptionRepository;
+        this.clientRepository = clientRepository;
+        this.cancelLink = cancelLink;
+        this.successLink = successLink;
         Stripe.apiKey = stripeApiKey;
     }
 

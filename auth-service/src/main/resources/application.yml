@@ -13,7 +13,7 @@ spring:
     show-sql: true
 
   datasource:
-    url: jdbc:postgresql://localhost:5430/auth_db_new
+    url: jdbc:postgresql://localhost:5433/auth_db
     username: ifortex
     password: ifortex
 

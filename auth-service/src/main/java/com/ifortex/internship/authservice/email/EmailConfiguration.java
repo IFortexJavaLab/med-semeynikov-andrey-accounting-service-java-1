@@ -1,7 +1,10 @@
 package com.ifortex.internship.authservice.email;
 
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,22 +13,24 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import java.util.Properties;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Getter
 @Setter
 @Configuration
+@RequiredArgsConstructor
 public class EmailConfiguration {
 
     @Value("${spring.mail.username}")
-    private String emailUsername;
+    String emailUsername;
 
     @Value("${spring.mail.password}")
-    private String emailPassword;
+    String emailPassword;
 
     @Value("${spring.mail.host}")
-    private String emailHost;
+    String emailHost;
 
     @Value("${spring.mail.port}")
-    private int emailPort;
+    int emailPort;
 
     @Bean
     public JavaMailSender javaMailSender() {

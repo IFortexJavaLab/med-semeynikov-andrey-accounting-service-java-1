@@ -4,12 +4,13 @@ import com.ifortex.internship.authservice.dto.request.CreateClientRequest;
 import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
 import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
+import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.model.Account;
-import com.ifortex.internship.authservice.model.AccountRole;
 import com.ifortex.internship.authservice.model.Client;
-import com.ifortex.internship.authservice.model.constant.RoleType;
-import com.ifortex.internship.authservice.repository.AccountRoleRepository;
+import com.ifortex.internship.authservice.model.Role;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.ClientRepository;
+import com.ifortex.internship.authservice.repository.RoleRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,9 +22,10 @@ import org.springframework.stereotype.Service;
 public class ClientService {
 
     private final ClientRepository clientRepository;
-    private final AccountRoleRepository accountRoleRepository;
     private final AuthService authService;
     private final StripeService stripeService;
+    private final RoleRepository roleRepository;
+    private final AccountService accountService;
 
     @Transactional
     public CreateUserResponse createClient(CreateClientRequest request) {
@@ -48,7 +50,14 @@ public class ClientService {
     private CreatedAccountDto createAndRegisterClient(String email, String password) {
         authService.validateEmailNotRegistered(email);
 
-        CreatedAccountDto accountDto = authService.createAccount(email, password);
+        Role role = roleRepository.findByName(UserRole.CLIENT).orElseThrow(
+            () -> {
+                log.error("Role with name: {} not found", UserRole.CLIENT);
+                return new EntityNotFoundException(
+                    String.format("Role with name: %s not found", UserRole.CLIENT));
+            });
+
+        CreatedAccountDto accountDto = accountService.createAccount(email, password, role);
 
         Account account = accountDto.getAccount();
         String customerStripeId = stripeService.registerCustomer(account);
@@ -64,12 +73,6 @@ public class ClientService {
             .setAccount(account)
             .setStripeId(customerStripeId);
         clientRepository.save(client);
-
-        AccountRole accountRole = new AccountRole()
-            .setAccount(account)
-            .setRoleType(RoleType.CLIENT)
-            .setRoleEntityId(client.getId());
-        accountRoleRepository.save(accountRole);
     }
 
 }

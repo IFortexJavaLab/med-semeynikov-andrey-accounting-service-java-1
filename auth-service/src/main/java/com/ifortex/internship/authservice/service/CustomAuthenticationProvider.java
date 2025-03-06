@@ -41,7 +41,13 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String email = (String) authentication.getPrincipal();
         String password = (String) authentication.getCredentials();
 
-        Account account = findAccountByEmail(email);
+        Account account = accountRepository
+            .findByEmail(email)
+            .orElseThrow(
+                () -> {
+                    log.debug("Account with email: {} not found", email);
+                    return new UsernameNotFoundException("User not found");
+                });
 
         boolean isSoftDeleted = account.isSoftDeleted();
         if (isSoftDeleted) {
@@ -91,25 +97,13 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
     }
 
-    private Account findAccountByEmail(String email) {
-        return accountRepository
-            .findByEmail(email)
-            .orElseThrow(
-                () -> {
-                    log.debug("Account with email: {} not found", email);
-                    //todo string variabels
-                    return new UsernameNotFoundException("User not found");
-                    //todo what type of error should be thrown?
-                });
-    }
-
     private boolean verifyPassword(String inputPassword, String storedPasswordHash) {
         return passwordEncoder.matches(inputPassword, storedPasswordHash);
     }
 
     private Authentication createAuthenticationToken(Account account, String password) {
 
-        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(ROLE + account.getAccountRole().getRoleType().name()));
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(ROLE + account.getRole().getName().name()));
 
         return new UsernamePasswordAuthenticationToken(account, password, authorities);
     }

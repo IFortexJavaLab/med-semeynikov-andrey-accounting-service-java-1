@@ -23,7 +23,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
-//@Profile("syncMod")
 @Component
 @RequiredArgsConstructor
 public class SubscriptionSyncService {
@@ -115,7 +114,7 @@ public class SubscriptionSyncService {
                 Optional<Client> client = clientRepository.findByStripeId(customerId);
                 if (client.isEmpty()) {
                     log.debug("Client with stripe customer ID: {} not found", customerId);
-                    break;
+                    continue;
                 }
                 newSub.setClient(client.get());
                 toUpdateOrSave.add(newSub);

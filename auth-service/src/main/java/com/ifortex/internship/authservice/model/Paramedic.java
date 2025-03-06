@@ -13,8 +13,11 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "paramedic")
@@ -22,6 +25,7 @@ import org.hibernate.annotations.OnDeleteAction;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Accessors(chain = true)
 public class Paramedic {
 
     @Id
@@ -34,5 +38,5 @@ public class Paramedic {
     private Account account;
 
     @Column(nullable = false)
-    private Long bonusPolicyId;
+    private UUID bonusPolicyId;
 }

@@ -3,18 +3,21 @@ package com.ifortex.internship.authservice.dto.request;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
 import java.time.Instant;
 import java.util.UUID;
 
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Getter
 @Setter
 public class BlockUserRequest {
 
     @NotNull(message = "Account ID is required")
-    private UUID accountId;
+    UUID accountId;
 
     @JsonFormat(
         shape = JsonFormat.Shape.STRING,
@@ -22,5 +25,5 @@ public class BlockUserRequest {
         timezone = "UTC")
     @NotNull(message = "expiresAt is required")
     @Future(message = "expiresAt must be a future date")
-    private Instant expiresAt;
+    Instant expiresAt;
 }

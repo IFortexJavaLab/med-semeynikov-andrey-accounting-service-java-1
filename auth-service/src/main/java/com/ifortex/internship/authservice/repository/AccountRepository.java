@@ -20,11 +20,12 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
     Optional<Account> findByAccountId(UUID accountId);
 
+    //todo rewrite with specification
+
     @Query("""
             select new com.ifortex.internship.authservice.dto.response.UserListViewDto(
-            a.accountId, a.email, a.firstName, a.lastName, ar.roleType)
+            a.accountId, a.email, a.firstName, a.lastName, a.role.name)
             FROM Account a
-            LEFT JOIN AccountRole ar ON a.id = ar.account.id
             WHERE 
                 (:searchText IS NULL OR 
                     lower(a.phoneNumber) LIKE LOWER(CONCAT('%', :searchText, '%')) OR
@@ -33,9 +34,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
                     LOWER(a.email) LIKE LOWER(CONCAT('%', :searchText, '%'))
                 )
                 AND (
-                (:admins IS TRUE AND ar.roleType = 'ADMIN') OR
-                (:clients IS TRUE AND ar.roleType = 'CLIENT') OR
-                (:medics IS TRUE AND ar.roleType = 'PARAMEDIC')
+                (:admins IS TRUE AND a.role.name = 'ADMIN') OR
+                (:clients IS TRUE AND a.role.name = 'CLIENT') OR
+                (:medics IS TRUE AND a.role.name = 'PARAMEDIC')
                )
                AND (
                (:blocked is true and a.blockedUntil > :utcNow ) or

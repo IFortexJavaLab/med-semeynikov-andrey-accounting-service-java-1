@@ -4,13 +4,14 @@ import com.ifortex.internship.authservice.dto.request.CreateAdminRequest;
 import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
 import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
+import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.authservice.model.Account;
-import com.ifortex.internship.authservice.model.AccountRole;
 import com.ifortex.internship.authservice.model.Admin;
-import com.ifortex.internship.authservice.model.constant.RoleType;
-import com.ifortex.internship.authservice.repository.AccountRoleRepository;
+import com.ifortex.internship.authservice.model.Role;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.AdminRepository;
+import com.ifortex.internship.authservice.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,8 @@ public class AdminService {
 
     private final AdminRepository adminRepository;
     private final AuthService authService;
-    private final AccountRoleRepository accountRoleRepository;
+    private final RoleRepository roleRepository;
+    private final AccountService accountService;
 
     @Transactional
     public CreateUserResponse createAdmin(CreateAdminRequest request) {
@@ -42,19 +44,18 @@ public class AdminService {
 
         authService.validateEmailNotRegistered(email);
 
-        CreatedAccountDto accountDto = authService.createAccount(email, null);
+        Role role = roleRepository.findByName(UserRole.ADMIN).orElseThrow(
+            () -> {
+                log.error("Role with name: {} not found", UserRole.ADMIN);
+                return new EntityNotFoundException(
+                    String.format("Role with name: %s not found", UserRole.ADMIN));
+            });
+
+        CreatedAccountDto accountDto = accountService.createAccount(email, null, role);
         Account account = accountDto.getAccount();
 
         Admin admin = new Admin().setSuperAdmin(isCreatedSuperAdmin).setAccount(account);
         adminRepository.save(admin);
-
-        RoleType roleType = RoleType.ADMIN;
-        AccountRole accountRole =
-            new AccountRole()
-                .setRoleType(roleType)
-                .setAccount(account)
-                .setRoleEntityId(admin.getId());
-        accountRoleRepository.save(accountRole);
 
         log.info("Admin: {} with privilege isSuperAdmin = {} created successfully", email, isCreatedSuperAdmin);
 

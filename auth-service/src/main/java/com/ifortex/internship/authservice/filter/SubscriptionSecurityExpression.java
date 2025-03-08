@@ -1,7 +1,7 @@
 package com.ifortex.internship.authservice.filter;
 
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
+import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;

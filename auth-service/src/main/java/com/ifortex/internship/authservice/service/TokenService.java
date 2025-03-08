@@ -1,10 +1,6 @@
 package com.ifortex.internship.authservice.service;
 
 import com.ifortex.internship.authservice.dto.response.TokensResponse;
-import com.ifortex.internship.authservice.exception.AuthServiceException;
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
-import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
-import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Admin;
 import com.ifortex.internship.authservice.model.Client;
@@ -14,6 +10,10 @@ import com.ifortex.internship.authservice.model.stripe.StripeSubscription;
 import com.ifortex.internship.authservice.model.stripe.SubscriptionStatus;
 import com.ifortex.internship.authservice.repository.AdminRepository;
 import com.ifortex.internship.authservice.repository.ClientRepository;
+import com.ifortex.internship.medstarter.exception.MedServiceException;
+import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
+import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
+import com.ifortex.internship.medstarter.exception.custom.UserBlockedException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
@@ -61,8 +61,8 @@ public class TokenService {
     private static final String HAS_ACTIVE_SUBSCRIPTION_CLAIM = "hasActiveSubscription";
     private static final String IS_SUPER_ADMIN_CLAIM = "isSuperAdmin";
     private static final String ROLE = "ROLE_";
+    private static final String CLAIM_ACCOUNT_ID = "accountId";
 
-    //@Transactional
     public String generateAccessToken(Account account) {
 
         Map<String, Object> claims = new HashMap<>();
@@ -115,7 +115,7 @@ public class TokenService {
                 break;
         }
 
-        claims.put("accountId", account.getAccountId());
+        claims.put(CLAIM_ACCOUNT_ID, account.getAccountId());
         return Jwts.builder()
             .subject(account.getEmail())
             .claims(claims)
@@ -134,7 +134,7 @@ public class TokenService {
 
             account = storedRefreshtoken.getAccount();
 
-        } catch (AuthServiceException e) {
+        } catch (MedServiceException e) {
             log.debug("Exception message: {}", e.getMessage());
             throw new AuthorizationException("Your session has expired. Please log in again.");
         }
@@ -204,7 +204,7 @@ public class TokenService {
             .build()
             .parseSignedClaims(token)
             .getPayload()
-            .get("accountId", String.class); // todo move to constants
+            .get(CLAIM_ACCOUNT_ID, String.class);
     }
 
     public Boolean hasActiveSubscriptionFromToken(String token) {

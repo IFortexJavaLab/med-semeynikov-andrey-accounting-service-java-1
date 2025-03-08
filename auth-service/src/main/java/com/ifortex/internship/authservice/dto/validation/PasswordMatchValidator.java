@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.dto.validation;
 
-import com.ifortex.internship.authservice.exception.custom.InternalServiceException;
+import com.ifortex.internship.medstarter.exception.custom.InternalServiceException;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 

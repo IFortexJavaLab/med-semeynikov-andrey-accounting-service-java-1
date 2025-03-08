@@ -1,9 +1,9 @@
 package com.ifortex.internship.authservice.filter;
 
-import com.ifortex.internship.authservice.exception.AuthServiceException;
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.medstarter.exception.MedServiceException;
+import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,7 +56,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
             throw new AuthorizationException("Invalid JWT token");
 
-        } catch (AuthServiceException e) {
+        } catch (MedServiceException e) {
             log.debug("Authentication service exception message: {}", e.getMessage());
             response.sendError(
                 HttpServletResponse.SC_UNAUTHORIZED);

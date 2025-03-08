@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.email;
 
-import com.ifortex.internship.authservice.exception.custom.InternalServiceException;
+import com.ifortex.internship.medstarter.exception.custom.InternalServiceException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.AccessLevel;

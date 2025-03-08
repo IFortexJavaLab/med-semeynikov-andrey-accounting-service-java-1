@@ -1,11 +1,11 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
-import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
+import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
+import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

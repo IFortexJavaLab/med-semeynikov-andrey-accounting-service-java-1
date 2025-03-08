@@ -4,6 +4,7 @@ import com.ifortex.internship.authservice.filter.AuthEntryPointJwt;
 import com.ifortex.internship.authservice.filter.AuthTokenFilter;
 import com.ifortex.internship.authservice.filter.CustomAccessDeniedHandler;
 import com.ifortex.internship.authservice.service.CustomAuthenticationProvider;
+import com.ifortex.internship.authservice.service.OAuthService;
 import com.ifortex.internship.authservice.service.TokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -15,8 +16,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -30,6 +29,7 @@ public class AuthSecurityConfig {
     private final AuthEntryPointJwt unauthorizedHandler;
     private final CustomAccessDeniedHandler accessDeniedHandler;
     private final CustomAuthenticationProvider authenticationProvider;
+    private final OAuthService oAuthService;
 
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
@@ -49,7 +49,6 @@ public class AuthSecurityConfig {
                         .requestMatchers("/api/v1/account/**").authenticated()
                         .requestMatchers("/api/v1/auth/logout").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/auth-service/users/**").authenticated()
                         .requestMatchers("/api/v1/accounting/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/subscription/plans").permitAll()
                         .requestMatchers("/api/v1/subscription/**").hasRole("CLIENT")
@@ -62,17 +61,13 @@ public class AuthSecurityConfig {
                 exception ->
                     exception
                         .authenticationEntryPoint(unauthorizedHandler)
-                        .accessDeniedHandler(accessDeniedHandler));
+                        .accessDeniedHandler(accessDeniedHandler))
+            .oauth2Login(config -> config.successHandler(oAuthService));
 
         http.authenticationProvider(authenticationProvider);
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 
     @Bean

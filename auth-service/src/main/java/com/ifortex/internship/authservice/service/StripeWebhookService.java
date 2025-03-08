@@ -21,7 +21,6 @@ public class StripeWebhookService {
     private final SubscriptionRepository subscriptionRepository;
     private final ClientRepository clientRepository;
 
-    //todo move logs to constants
     public void processInvoicePaymentSucceeded(Invoice invoice) {
 
         log.debug("Processing invoice payment succeeded for invoice id: {} ", invoice.getId());

@@ -9,7 +9,6 @@ import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse
 import com.ifortex.internship.authservice.dto.response.TokensResponse;
 import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
-import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
@@ -42,78 +41,67 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
+    static final String LOG_ACCOUNT_NOT_FOUND_EMAIL = "Account with email: {} not found";
+    static final String LOG_ACCOUNT_NOT_FOUND_ID = "Account with ID: {} not found";
     static final String LOG_REFRESH_TOKEN_DELETED = "Refresh token deleted successfully for user: {}";
-    static final String LOG_EMAIL_ALREADY_REGISTERED = "Email: {} is already registered";
+    static final String LOG_SENDING_EMAIL_ERROR = "Error during sending 2FA verification email for: {}. StackTrace: {}";
+    static final String LOG_PASSWORD_HAS_BEEN_RESET = "Password has been reset for user: {} by admin: {}";
 
     static final int ROLE_LENGTH = 5;
 
-    final CustomAuthenticationProvider authenticationProvider;
-    final TemporaryPasswordRepository passwordRepository;
-    final RefreshTokenRepository refreshTokenRepository;
-    final AccountRepository accountRepository;
-    final PasswordEncoder passwordEncoder;
-    final TokenService tokenService;
-    final EmailService emailService;
-    final RedisService redisService;
+    TokenService tokenService;
+    EmailService emailService;
+    RedisService redisService;
+    PasswordEncoder passwordEncoder;
+    AccountRepository accountRepository;
+    PasswordGenerator passwordGenerator;
+    RefreshTokenRepository refreshTokenRepository;
+    TemporaryPasswordRepository passwordRepository;
+    CustomAuthenticationProvider authenticationProvider;
 
-    @Value("${app.otp.loginExpirationMinutes}") final int loginOtpExpirationMinutes;
-    @Value("${app.tempPassword.expirationHours}") final int tempPasswordExpirationHours;
-    @Value("${app.link.resetPasswordEmail}") final String resetLink;
-    @Value("${app.link.verifyOtpLogin}") final String verifyOtpLink;
-    @Value("${app.jwtExpirationS}") final Long jwtExpirationS;
-    @Value("${app.refreshTokenExpirationS}") final Long refreshTokenExpirationS;
-    private final PasswordGenerator passwordGenerator;
+    @Value("${app.jwtExpirationS}") Long jwtExpirationS;
+    @Value("${app.otp.loginExpirationMinutes}") int loginOtpExpirationMinutes;
+    @Value("${app.tempPassword.expirationHours}") int tempPasswordExpirationHours;
+    @Value("${app.refreshTokenExpirationS}") Long refreshTokenExpirationS;
+    @Value("${app.link.resetPasswordEmail}") String resetLink;
+    @Value("${app.link.verifyOtpLogin}") String verifyOtpLink;
 
     public AuthResponse authenticateUser(LoginRequest loginRequest) {
-
         String accountEmail = loginRequest.getEmail();
         log.debug("Authenticating user with email: {}", accountEmail);
 
-        Authentication
-            authentication =
-            authenticationProvider.authenticate(new UsernamePasswordAuthenticationToken(accountEmail, loginRequest.getPassword()));
-
+        Authentication authentication = createAuthentication(accountEmail, loginRequest.getPassword());
         SecurityContextHolder.getContext().setAuthentication(authentication);
         Account account = (Account) authentication.getPrincipal();
 
-        log.debug("User: {} successfully authenticated.", accountEmail);
+        log.debug("User with account: {} successfully authenticated.", account.getAccountId());
 
         if (account.isTwoFactorEnabled()) {
-            log.debug("User: {} has 2FA enabled. Sending OTP", accountEmail);
-
-            String otp = passwordGenerator.generateOtp();
-            String redisKey = RedisKeyPrefix.LOGIN_OTP.getPrefix() + accountEmail;
-            redisService.saveOtp(redisKey, otp, loginOtpExpirationMinutes);
-            log.debug("Otp for user: {} generated and saved successfully", accountEmail);
-
-            // feature refactor method with dotry
-            try {
-                emailService.sendVerificationEmail(accountEmail, "2FA Verification Code", otp);
-            } catch (MessagingException e) {
-                log.error("Error during sending 2FA verification email for: {}. StackTrace: {}", accountEmail, e.getMessage());
-                throw new EmailSendException(String.format("Failed to send 2FA verification email to the: %s", accountEmail));
-            }
-
-            String
-                message =
-                String.format("Two-factor authentication is required to complete your login. A verification code has been sent "
-                              + "to your email: %s. Please enter the code along with your email at the following link: ", accountEmail);
-            return AuthResponse.builder().message(message).link(verifyOtpLink).build();
+            return authenticateWith2FA(account);
         }
 
         return buildAuthResponse(account);
     }
 
     @Transactional
-    public AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest request) {
+    public AuthResponse authenticateSocialUser(Account account) {
+        UUID accountId = account.getAccountId();
+        log.debug("Authenticating social user with account: {}", accountId);
 
+        if (account.isTwoFactorEnabled()) {
+            return authenticateWith2FA(account);
+        }
+        return buildAuthResponse(account);
+    }
+
+    @Transactional
+    public AuthResponse completeLoginWithOtp(VerifyLoginOtpRequest request) {
         String accountEmail = request.getEmail();
         log.debug("Verifying otp to log in for email: {}", accountEmail);
 
@@ -130,7 +118,7 @@ public class AuthService {
         redisService.deleteOtp(redisKey);
 
         var account = accountRepository.findByEmail(accountEmail).orElseThrow(() -> {
-            log.debug(LOG_ACCOUNT_NOT_FOUND, accountEmail);
+            log.debug(LOG_ACCOUNT_NOT_FOUND_EMAIL, accountEmail);
             return new AuthorizationException("Failed to verify otp. Please try again.");
         });
 
@@ -139,7 +127,6 @@ public class AuthService {
 
     @Transactional
     public AuthResponse logoutUser() {
-
         String userEmail = getUserEmailFromAuthentication();
         log.info("Logout attempt for user: {}", userEmail);
         refreshTokenRepository.deleteRefreshTokenByAccountEmail(userEmail);
@@ -177,17 +164,15 @@ public class AuthService {
 
     @Transactional
     public TemporaryPasswordResponse resetPasswordWithTemp(UUID accountId) {
-
         log.debug("Initiating password reset for user with account ID: {}", accountId);
         AdminDetailsDto adminDetails = getAdminDetailsFromAuthentication();
 
         Account account = accountRepository.findByAccountId(accountId).orElseThrow(() -> {
-            log.error("Account with ID: {} not found", accountId);
+            log.error(LOG_ACCOUNT_NOT_FOUND_ID, accountId);
             return new EntityNotFoundException(String.format("Account with ID: %s not found", accountId));
         });
 
         validateUserModificationPermission(adminDetails, account);
-
         deleteOldTemporaryPassword(account);
 
         String tempPassword = passwordGenerator.generateTempPassword();
@@ -206,7 +191,7 @@ public class AuthService {
         refreshTokenRepository.deleteRefreshTokenByAccountEmail(account.getEmail());
         log.debug(LOG_REFRESH_TOKEN_DELETED, account.getEmail());
 
-        log.info("Password has been reset for user: {} by admin: {}", accountId, adminDetails.getAccountId());
+        log.info(LOG_PASSWORD_HAS_BEEN_RESET, accountId, adminDetails.getAccountId());
 
         return new TemporaryPasswordResponse(tempPassword, tempPasswordExpirationHours);
     }
@@ -245,7 +230,7 @@ public class AuthService {
         AdminDetailsDto adminDetails = getAdminDetailsFromAuthentication();
 
         Account account = accountRepository.findByAccountId(accountId).orElseThrow(() -> {
-            log.error("Account with ID: {} not found", accountId);
+            log.error(LOG_ACCOUNT_NOT_FOUND_ID, accountId);
             return new EntityNotFoundException(String.format("Account with ID: %s not found", accountId));
         });
         String accountEmail = account.getEmail();
@@ -265,13 +250,44 @@ public class AuthService {
         try {
             emailService.sendPasswordResetRequestEmail(account.getEmail(), "Password reset", resetMessage);
         } catch (MessagingException e) {
-            log.error("Error during sending 2FA verification email for: {}. StackTrace: {}", accountEmail, e.getMessage());
+            log.error(LOG_SENDING_EMAIL_ERROR, accountEmail, e.getMessage());
             throw new EmailSendException(String.format("Failed to send Password reset request to the email: %s", accountEmail));
         }
 
         String message = String.format("Password reset request email sent to: %s.", accountEmail);
-        log.info("Password has been reset for user: {} by admin: {}", accountId, adminDetails.getAccountId());
+        log.info(LOG_PASSWORD_HAS_BEEN_RESET, accountId, adminDetails.getAccountId());
         return new SuccessResponse(message);
+    }
+
+    private AuthResponse authenticateWith2FA(Account account) {
+        UUID accountId = account.getAccountId();
+        String accountEmail = account.getEmail();
+        log.debug("Account: {} has 2FA enabled. Sending OTP", accountId);
+
+        String otp = passwordGenerator.generateOtp();
+        String redisKey = RedisKeyPrefix.LOGIN_OTP.getPrefix() + accountEmail;
+        redisService.saveOtp(redisKey, otp, loginOtpExpirationMinutes);
+        log.debug("Otp for user with account: {} generated and saved successfully", accountId);
+
+        try {
+            emailService.sendVerificationEmail(accountEmail, "2FA Verification Code", otp);
+        } catch (MessagingException e) {
+            log.error(LOG_SENDING_EMAIL_ERROR, account, e.getMessage());
+            throw new EmailSendException(String.format("Failed to send 2FA verification email to the: %s", account));
+        }
+
+        String
+            message =
+            String.format("Two-factor authentication is required to complete your login. A verification code has been sent "
+                          + "to your email: %s. Please enter the code along with your email at the following link: ", account);
+        return AuthResponse.builder()
+            .message(message)
+            .link(verifyOtpLink)
+            .build();
+    }
+
+    public Authentication createAuthentication(String accountEmail, String password) {
+        return authenticationProvider.authenticate(new UsernamePasswordAuthenticationToken(accountEmail, password));
     }
 
     private UserDetailsImpl validateAuthenticatedUser() {
@@ -293,7 +309,6 @@ public class AuthService {
     }
 
     private AuthResponse buildAuthResponse(Account account) {
-
         String newAccessToken = tokenService.generateAccessToken(account);
         log.debug("Access token generated successfully for account: {}", account.getEmail());
 
@@ -303,12 +318,4 @@ public class AuthService {
             .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS))
             .build();
     }
-
-    public void validateEmailNotRegistered(String email) {
-        if (accountRepository.findByEmail(email).isPresent()) {
-            log.error(LOG_EMAIL_ALREADY_REGISTERED, email);
-            throw new EmailAlreadyRegistered("Email: " + email + " is already registered.");
-        }
-    }
-
 }

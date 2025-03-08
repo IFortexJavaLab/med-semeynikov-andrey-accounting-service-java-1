@@ -19,16 +19,21 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/subscription")
 @RequiredArgsConstructor
 public class StripeWebhookController {
 
-    final StripeWebhookService stripeWebhookService;
+    static final String EVENT_TYPE_PAYMENT_SUCCEEDED = "invoice.payment_succeeded";
+    static final String EVENT_TYPE_SUBSCRIPTION_DELETED = "customer.subscription.deleted";
+    static final String EVENT_TYPE_SUBSCRIPTION_UPDATED = "customer.subscription.updated";
+    static final String LOG_STRIPE_ERROR = "Unable to deserialize Stripe invoice object from event.";
 
-    @Value("${app.stripe.api.webhook.secret}") final String endpointSecret;
+    StripeWebhookService stripeWebhookService;
+
+    @Value("${app.stripe.api.webhook.secret}") String endpointSecret;
 
     @PostMapping("/webhooks")
     public ResponseEntity<String> handleStripeWebhook(
@@ -44,32 +49,32 @@ public class StripeWebhookController {
         }
 
         switch (event.getType()) {
-            case "invoice.payment_succeeded":
+            case EVENT_TYPE_PAYMENT_SUCCEEDED:
                 Invoice invoice = (Invoice) event.getDataObjectDeserializer().getObject().orElse(null);
                 if (invoice != null) {
                     stripeWebhookService.processInvoicePaymentSucceeded(invoice);
                 } else {
-                    log.warn("Unable to deserialize Stripe invoice object from event.");
+                    log.error(LOG_STRIPE_ERROR);
                 }
                 break;
 
-            case "customer.subscription.deleted":
+            case EVENT_TYPE_SUBSCRIPTION_DELETED:
                 Subscription subscription =
                     (Subscription) event.getDataObjectDeserializer().getObject().orElse(null);
                 if (subscription != null) {
                     stripeWebhookService.processSubscriptionCancellation(subscription);
                 } else {
-                    log.warn("Unable to deserialize Stripe invoice object from event.");
+                    log.error(LOG_STRIPE_ERROR);
                 }
                 break;
 
-            case "customer.subscription.updated":
+            case EVENT_TYPE_SUBSCRIPTION_UPDATED:
                 Subscription subscriptionObj =
                     (Subscription) event.getDataObjectDeserializer().getObject().orElse(null);
                 if (subscriptionObj != null) {
                     stripeWebhookService.processSubscriptionUpdated(subscriptionObj);
                 } else {
-                    log.warn("Unable to deserialize Stripe subscription object from event.");
+                    log.error(LOG_STRIPE_ERROR);
                 }
                 break;
             default:

@@ -126,7 +126,7 @@ public class UserController {
         @RequestBody @Valid PasswordResetWithOtpDto request) {
 
         log.info("Reset password with otp attempt for email: {}", request.getEmail());
-        SuccessResponse response = accountService.resetPasswordConfirm(request);
+        SuccessResponse response = accountService.passwordResetConfirm(request);
 
         return ResponseEntity.ok().body(response);
     }

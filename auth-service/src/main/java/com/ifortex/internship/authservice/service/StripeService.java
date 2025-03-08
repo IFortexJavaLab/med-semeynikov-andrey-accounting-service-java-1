@@ -24,6 +24,8 @@ import com.stripe.param.PriceListParams;
 import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.SubscriptionListParams;
 import com.stripe.param.checkout.SessionCreateParams;
+import lombok.AccessLevel;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,22 +35,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 public class StripeService {
 
-    private static final String LOG_STRIPE_FAILED = "Stripe API call failed: {}. Error code: {}. StackTrace: ";
+    static final String LOG_STRIPE_FAILED = "Stripe API call failed: {}. Error code: {}. StackTrace: ";
+    static final int CENTS_IN_DOLLAR = 100;
 
-    private final AuthService authService;
-    private final SubscriptionRepository subscriptionRepository;
-    private final ClientRepository clientRepository;
+    AuthService authService;
+    ClientRepository clientRepository;
+    SubscriptionRepository subscriptionRepository;
 
-    @Value("${app.stripe.url.cancel}")
-    private final String cancelLink;
-    @Value("${app.stripe.url.success}")
-    private final String successLink;
-
-    private static final int CENTS_IN_DOLLAR = 100;
+    @Value("${app.stripe.url.cancel}") String cancelLink;
+    @Value("${app.stripe.url.success}") String successLink;
 
     public StripeService(final AuthService authService,
                          final SubscriptionRepository subscriptionRepository,

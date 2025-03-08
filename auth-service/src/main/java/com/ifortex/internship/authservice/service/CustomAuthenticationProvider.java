@@ -5,8 +5,10 @@ import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.repository.AccountRepository;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -20,21 +22,17 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CustomAuthenticationProvider implements AuthenticationProvider {
 
-    private final PasswordEncoder passwordEncoder;
-    private final AccountRepository accountRepository;
+    static final String LOG_INVALID_EMAIL_OR_PASSWORD = "Invalid email or password";
+    static final String ROLE = "ROLE_";
 
-    private static final String LOG_INVALID_EMAIL_OR_PASSWORD = "Invalid email or password";
-    private static final String ROLE = "ROLE_";
-
-    public CustomAuthenticationProvider(
-        AccountRepository accountRepository, @Lazy PasswordEncoder passwordEncoder) {
-        this.accountRepository = accountRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
+    PasswordEncoder passwordEncoder;
+    AccountRepository accountRepository;
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {

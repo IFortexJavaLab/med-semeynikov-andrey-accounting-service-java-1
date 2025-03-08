@@ -119,7 +119,8 @@ public class AccountService {
                 .setRole(role)
                 .setFirstName(socialUserInfo.getFirstName())
                 .setLastName(socialUserInfo.getLastName())
-                .setProvider(socialUserInfo.getProvider());
+                .setProvider(socialUserInfo.getProvider())
+                .setTwoFactorEnabled(false);
 
         accountRepository.save(account);
         log.info("Account:{} for social user created successfully", account.getAccountId());
@@ -431,7 +432,7 @@ public class AccountService {
 
     public AccountDto getUserProfileById(UUID accountId) {
 
-        //todo add specific data for each role
+        //feature add specific data for each role
 
         var adminId = authService.getAccountIdFromAuthentication();
         log.info("Getting account profile for user with ID: {} by Admin with ID: {}", accountId, adminId);

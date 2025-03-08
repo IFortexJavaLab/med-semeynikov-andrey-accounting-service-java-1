@@ -2,6 +2,7 @@ package com.ifortex.internship.authservice.service;
 
 import com.ifortex.internship.authservice.dto.request.CreateClientRequest;
 import com.ifortex.internship.authservice.dto.request.RegistrationRequest;
+import com.ifortex.internship.authservice.dto.request.SocialUserInfo;
 import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
@@ -12,20 +13,24 @@ import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.ClientRepository;
 import com.ifortex.internship.authservice.repository.RoleRepository;
 import jakarta.transaction.Transactional;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ClientService {
 
-    private final ClientRepository clientRepository;
-    private final AuthService authService;
-    private final StripeService stripeService;
-    private final RoleRepository roleRepository;
-    private final AccountService accountService;
+    static final String LOG_USER_REGISTERED_SUCCESSFULLY = "User: {} registered successfully";
+
+    ClientRepository clientRepository;
+    StripeService stripeService;
+    RoleRepository roleRepository;
+    AccountService accountService;
 
     @Transactional
     public CreateUserResponse createClient(CreateClientRequest request) {
@@ -37,7 +42,6 @@ public class ClientService {
             "Client with email: %s created successfully",
             accountDto.getAccount().getEmail()
         );
-
         return new CreateUserResponse(message, accountDto.getPassword(), accountDto.getTempPasswordExpirationHours());
     }
 
@@ -48,7 +52,7 @@ public class ClientService {
     }
 
     private CreatedAccountDto createAndRegisterClient(String email, String password) {
-        authService.validateEmailNotRegistered(email);
+        accountService.validateEmailNotRegistered(email);
 
         Role role = roleRepository.findByName(UserRole.CLIENT).orElseThrow(
             () -> {
@@ -64,8 +68,29 @@ public class ClientService {
 
         save(account, customerStripeId);
 
-        log.info("User: {} registered successfully", account.getEmail());
+        log.info(LOG_USER_REGISTERED_SUCCESSFULLY, account.getEmail());
         return accountDto;
+    }
+
+    public Account createAndRegisterSocialClient(SocialUserInfo socialUserInfo) {
+        String email = socialUserInfo.getEmail();
+        log.info("Registering social user with email: {}", email);
+
+        accountService.validateEmailNotRegistered(email);
+        Role role = roleRepository.findByName(UserRole.CLIENT).orElseThrow(
+            () -> {
+                log.error("Role with name: {} not found", UserRole.CLIENT);
+                return new EntityNotFoundException(
+                    String.format("Role with name: %s not found", UserRole.CLIENT));
+            });
+
+        var account = accountService.createAccountForSocialClient(socialUserInfo, role);
+
+        String customerStripeId = stripeService.registerCustomer(account);
+        save(account, customerStripeId);
+
+        log.info(LOG_USER_REGISTERED_SUCCESSFULLY, account.getEmail());
+        return account;
     }
 
     private void save(Account account, String customerStripeId) {

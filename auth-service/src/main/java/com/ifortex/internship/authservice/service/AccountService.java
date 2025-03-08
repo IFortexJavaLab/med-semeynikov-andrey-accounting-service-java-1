@@ -3,6 +3,7 @@ package com.ifortex.internship.authservice.service;
 import com.ifortex.internship.authservice.dto.request.BlockUserRequest;
 import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
+import com.ifortex.internship.authservice.dto.request.SocialUserInfo;
 import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
 import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
@@ -15,6 +16,7 @@ import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.UserListViewDto;
 import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
+import com.ifortex.internship.authservice.exception.custom.EmailAlreadyRegistered;
 import com.ifortex.internship.authservice.exception.custom.EmailSendException;
 import com.ifortex.internship.authservice.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.authservice.exception.custom.ForbiddenActionException;
@@ -24,6 +26,7 @@ import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
+import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.util.PasswordGenerator;
 import com.ifortex.internship.authservice.util.UserMapper;
@@ -40,50 +43,44 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountService {
 
     static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
+    static final String LOG_SENDING_EMAIL_ERROR = "Error during sending verification email for: {}. There details: {}";
 
-    final StripeService stripeService;
-    final AccountRepository accountRepository;
-    final PasswordEncoder passwordEncoder;
-    final AuthService authService;
-    final RedisService redisService;
-    final EmailService emailService;
-
-    final CustomAuthenticationProvider authenticationProvider;
-    final UserMapper userMapper;
-
-    final Random random = new Random();
-    private final PasswordGenerator passwordGenerator;
+    StripeService stripeService;
+    AccountRepository accountRepository;
+    PasswordEncoder passwordEncoder;
+    AuthService authService;
+    RedisService redisService;
+    EmailService emailService;
+    UserMapper userMapper;
+    PasswordGenerator passwordGenerator;
 
     @PersistenceContext
     EntityManager entityManager;
 
-    @Value("${app.link.login}") final String loginLink;
-    @Value("${app.link.changeEmail}") final String changeEmailLink;
-    @Value("${app.otp.emailExpirationMinutes}") final int expirationMinutes;
-    @Value("${app.link.resetPasswordConfirm}") final String resetPasswordLink;
+    @Value("${app.otp.emailExpirationMinutes}") int expirationMinutes;
     @Value("${app.otp.resetPasswordExpirationMinutes}") int resetPasswordExpirationMinutes;
-    @Value("${app.tempPassword.expirationHours}") final int tempPasswordExpirationHours;
+    @Value("${app.tempPassword.expirationHours}") int tempPasswordExpirationHours;
+    @Value("${app.link.login}") String loginLink;
+    @Value("${app.link.changeEmail}") String changeEmailLink;
+    @Value("${app.link.resetPasswordConfirm}") String resetPasswordLink;
 
     @Transactional
     public CreatedAccountDto createAccount(String email, String password, Role role) {
-
         log.debug("Creating account with email: {}", email);
 
         Account account =
@@ -112,15 +109,33 @@ public class AccountService {
     }
 
     @Transactional
-    public AuthResponse changePassword(ChangePasswordRequest request, String userEmail) {
+    public Account createAccountForSocialClient(SocialUserInfo socialUserInfo, Role role) {
+        log.info("Creating account for social user with email: {}", socialUserInfo.getEmail());
 
+        Account account =
+            new Account()
+                .setAccountId(UUID.randomUUID())
+                .setEmail(socialUserInfo.getEmail())
+                .setRole(role)
+                .setFirstName(socialUserInfo.getFirstName())
+                .setLastName(socialUserInfo.getLastName())
+                .setProvider(socialUserInfo.getProvider())
+                .setTwoFactorEnabled(false);
+
+        accountRepository.save(account);
+        log.info("Account:{} for social user created successfully", account.getAccountId());
+
+        return account;
+    }
+
+    @Transactional
+    public AuthResponse changePassword(ChangePasswordRequest request, String userEmail) {
         log.debug("Changing password for user with email: {}", userEmail);
 
         Account account = findAccountByEmail(userEmail);
 
         try {
-            authenticationProvider.authenticate(
-                new UsernamePasswordAuthenticationToken(userEmail, request.getCurrentPassword()));
+            authService.createAuthentication(userEmail, request.getCurrentPassword());
         } catch (AuthorizationException ex) {
             throw new InvalidRequestException("Current password is incorrect");
         }
@@ -149,7 +164,6 @@ public class AccountService {
 
     @Transactional
     public ChangeEmailResponse changeEmailRequest(String newEmail) {
-
         var currentEmail = authService.getUserEmailFromAuthentication();
         var userId = authService.getAccountIdFromAuthentication();
 
@@ -165,7 +179,7 @@ public class AccountService {
 
         log.info("Processing request for changing email for user: {}", currentEmail);
 
-        String otp = generateOtp();
+        String otp = passwordGenerator.generateOtp();
         log.debug("Otp for user with ID: {} generated successfully", userId);
 
         String redisKey = RedisKeyPrefix.EMAIL_CHANGE.getPrefix() + newEmail;
@@ -175,10 +189,7 @@ public class AccountService {
         try {
             emailService.sendVerificationEmail(currentEmail, "Email change", otp);
         } catch (MessagingException e) {
-            log.error(
-                "Error during sending verification email for: {}. There details: {}",
-                currentEmail,
-                e.getMessage());
+            log.error(LOG_SENDING_EMAIL_ERROR, currentEmail, e.getMessage());
             throw new EmailSendException("Failed to send verification email");
         }
 
@@ -193,7 +204,6 @@ public class AccountService {
 
     @Transactional
     public ChangeEmailResponse changeEmailConfirm(String newEmail, String code) {
-
         var currentEmail = authService.getUserEmailFromAuthentication();
         var userId = authService.getAccountIdFromAuthentication();
 
@@ -228,7 +238,6 @@ public class AccountService {
     }
 
     public SuccessResponse passwordResetRequest(String email) {
-
         log.debug("Initiating password reset for email: {}", email);
 
         if (accountRepository.findByEmail(email).isEmpty()) {
@@ -236,7 +245,7 @@ public class AccountService {
             throw new EntityNotFoundException(String.format("User with email: %s not found", email));
         }
 
-        String otp = generateOtp();
+        String otp = passwordGenerator.generateOtp();
         log.debug("Otp for user: {} generated successfully", email);
 
         String redisKey = RedisKeyPrefix.PASSWORD_RESET.getPrefix() + email;
@@ -246,18 +255,16 @@ public class AccountService {
         try {
             emailService.sendVerificationEmail(email, "Password reset", otp);
         } catch (MessagingException e) {
-            log.error("Error during sending verification email for: {}. There details: {}", email, e.getMessage());
+            log.error(LOG_SENDING_EMAIL_ERROR, email, e.getMessage());
             throw new EmailSendException(String.format("Failed to send verification email to the: %s", email));
         }
 
         String message = String.format("An email with a password reset code has been sent to your email: %s, please follow this link: ", email);
-
         return new SuccessResponse(message, resetPasswordLink);
     }
 
     @Transactional
-    public SuccessResponse resetPasswordConfirm(PasswordResetWithOtpDto request) {
-
+    public SuccessResponse passwordResetConfirm(PasswordResetWithOtpDto request) {
         String userEmail = request.getEmail();
         log.debug("Reset password with otp started for user: {}", userEmail);
 
@@ -290,16 +297,13 @@ public class AccountService {
     }
 
     @Transactional
-    public void blockUser(BlockUserRequest request) {
-
+    public void blockAccount(BlockUserRequest request) {
         log.debug("Blocking user with account: {}", request.getAccountId());
 
         var targetAccount = findAccountByAccountId(request.getAccountId());
-
-        validateSelfModification(targetAccount, "block");
-
         AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
 
+        validateSelfModification(targetAccount, "block");
         authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
 
         targetAccount.setBlockedUntil(request.getExpiresAt());
@@ -310,15 +314,13 @@ public class AccountService {
     }
 
     @Transactional
-    public void unblockUser(UnblockUserRequest request) {
-
+    public void unblockAccount(UnblockUserRequest request) {
         log.debug("Unblocking user with ID: {}", request.getUserId());
 
         var targetAccount = findAccountByAccountId(request.getUserId());
+        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
 
         validateSelfModification(targetAccount, "unblock");
-
-        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
         authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
 
         targetAccount.setBlockedUntil(null);
@@ -328,19 +330,17 @@ public class AccountService {
     }
 
     @Transactional
-    public void softDeleteUser(UUID accountId) {
-
+    public void softDelete(UUID accountId) {
         log.debug("Deleting account: {} with soft delete", accountId);
+
         var targetAccount = findAccountByAccountId(accountId);
+        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
 
         validateSelfModification(targetAccount, "soft delete"); // feature convert to enum
-
-        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
         authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
 
         targetAccount.setSoftDeleted(true);
         targetAccount.setRefreshToken(null);
-
         accountRepository.save(targetAccount);
 
         log.info("Account: {} deleted successfully with soft delete", accountId);
@@ -348,23 +348,25 @@ public class AccountService {
 
     @Transactional
     public void hardDelete(UUID accountId) {
-
         log.debug("Deleting account: {} with hard delete", accountId);
 
         var account = findAccountByAccountId(accountId);
+        var adminDetails = authService.getAdminDetailsFromAuthentication();
         validateSelfModification(account, "hard delete");
+        authService.validateUserModificationPermission(adminDetails, account);
 
-        try {
-            stripeService.deleteUser(accountId);
-        } catch (StripeException e) {
-            log.error(
-                "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                e.getMessage(), e.getCode(), e);
-            throw new InternalServiceException(
-                String.format(
-                    "Error occurred while deleting stripe customer account with account ID: %s", account.getAccountId()));
+        if (account.getRole().getName().equals(UserRole.CLIENT)) {
+            try {
+                stripeService.deleteUser(accountId);
+            } catch (StripeException e) {
+                log.error(
+                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
+                    e.getMessage(), e.getCode(), e);
+                throw new InternalServiceException(
+                    String.format(
+                        "Error occurred while deleting stripe customer account with account ID: %s", account.getAccountId()));
+            }
         }
-
         accountRepository.delete(account);
 
         log.debug("Account: {} deleted successfully with hard delete", accountId);
@@ -376,28 +378,6 @@ public class AccountService {
             log.error("Attempt to {} oneself. User with account: {}", action, account.getAccountId());
             throw new ForbiddenActionException(String.format("You can't %s yourself", action));
         }
-    }
-
-    private Account findAccountByAccountId(UUID accountId) {
-        return accountRepository
-            .findByAccountId(accountId)
-            .orElseThrow(
-                () -> {
-                    log.debug("Account with ID: {} not found", accountId);
-                    return new EntityNotFoundException(
-                        String.format("Account with ID: %s not found", accountId));
-                });
-    }
-
-    private Account findAccountByEmail(String email) {
-        return accountRepository
-            .findByEmail(email)
-            .orElseThrow(
-                () -> {
-                    log.debug("Account with email: {} not found", email);
-                    return new EntityNotFoundException(
-                        String.format("Account with email: %s not found", email));
-                });
     }
 
     public AccountDto getUserProfileByAuthentication() {
@@ -452,7 +432,7 @@ public class AccountService {
 
     public AccountDto getUserProfileById(UUID accountId) {
 
-        //todo add specific data for each role
+        //feature add specific data for each role
 
         var adminId = authService.getAccountIdFromAuthentication();
         log.info("Getting account profile for user with ID: {} by Admin with ID: {}", accountId, adminId);
@@ -462,7 +442,7 @@ public class AccountService {
         return userMapper.userToClientDto(user);
     }
 
-    public Page<UserListViewDto> searchUsers(UserSearchRequest request, int page, int size) {
+    public Page<UserListViewDto> searchAccounts(UserSearchRequest request, int page, int size) {
 
         log.debug("Searching through accounts with parameters");
         Pageable pageable = PageRequest.of(page, size);
@@ -483,8 +463,32 @@ public class AccountService {
         );
     }
 
-    public String generateOtp() {
-        int code = random.nextInt(900000) + 100000;
-        return String.valueOf(code);
+    public void validateEmailNotRegistered(String email) {
+        if (accountRepository.findByEmail(email).isPresent()) {
+            log.error("Email: {} is already registered", email);
+            throw new EmailAlreadyRegistered("Email: " + email + " is already registered.");
+        }
+    }
+
+    private Account findAccountByAccountId(UUID accountId) {
+        return accountRepository
+            .findByAccountId(accountId)
+            .orElseThrow(
+                () -> {
+                    log.debug("Account with ID: {} not found", accountId);
+                    return new EntityNotFoundException(
+                        String.format("Account with ID: %s not found", accountId));
+                });
+    }
+
+    private Account findAccountByEmail(String email) {
+        return accountRepository
+            .findByEmail(email)
+            .orElseThrow(
+                () -> {
+                    log.debug("Account with email: {} not found", email);
+                    return new EntityNotFoundException(
+                        String.format("Account with email: %s not found", email));
+                });
     }
 }

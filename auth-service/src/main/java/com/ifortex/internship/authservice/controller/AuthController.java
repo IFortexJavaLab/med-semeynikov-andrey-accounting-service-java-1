@@ -15,11 +15,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.net.URI;
 
 @Slf4j
 @RestController
@@ -50,6 +53,16 @@ public class AuthController {
         AuthResponse authResponse = authService.authenticateUser(loginRequest);
 
         return ResponseEntity.ok(authResponse);
+    }
+
+    @Operation(summary = "Google sign in")
+    @GetMapping("/login/google")
+    public ResponseEntity<Void> loginWithGoogle() {
+        log.info("Login attempt with google account");
+        return ResponseEntity
+            .status(HttpStatus.FOUND)
+            .location(URI.create("/oauth2/authorization/google"))
+            .build();
     }
 
     @Operation(

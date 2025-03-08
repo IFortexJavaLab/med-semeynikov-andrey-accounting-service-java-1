@@ -62,6 +62,7 @@ public class TokenService {
     private static final String IS_SUPER_ADMIN_CLAIM = "isSuperAdmin";
     private static final String ROLE = "ROLE_";
 
+    //@Transactional
     public String generateAccessToken(Account account) {
 
         Map<String, Object> claims = new HashMap<>();
@@ -177,19 +178,6 @@ public class TokenService {
         }
 
         return false;
-    }
-
-    public boolean isExpired(String authToken) {
-
-        try {
-            Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(authToken);
-            return false;
-        } catch (ExpiredJwtException e) {
-            log.debug("JWT token is expired: {}", e.getMessage());
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
     }
 
     private SecretKey getSigningKey() {

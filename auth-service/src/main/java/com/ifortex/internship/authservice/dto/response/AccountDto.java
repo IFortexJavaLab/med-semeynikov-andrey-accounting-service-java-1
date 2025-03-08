@@ -12,11 +12,11 @@ import lombok.experimental.FieldDefaults;
 @Setter
 @Builder
 public class AccountDto {
-     String accountId;
-     String email;
-     String phoneNumber;
-     String firstName;
-     String lastName;
-     boolean isTwoFactorEnabled;
-     UserRole role;
+    String accountId;
+    String email;
+    String phoneNumber;
+    String firstName;
+    String lastName;
+    boolean isTwoFactorEnabled;
+    UserRole role;
 }

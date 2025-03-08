@@ -11,27 +11,29 @@ import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.ParamedicRepository;
 import com.ifortex.internship.authservice.repository.RoleRepository;
 import jakarta.transaction.Transactional;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ParamedicService {
 
-    private final AuthService authService;
-    private final ParamedicRepository paramedicRepository;
-    private final RoleRepository roleRepository;
-    private final AccountService accountService;
+    ParamedicRepository paramedicRepository;
+    RoleRepository roleRepository;
+    AccountService accountService;
 
     @Transactional
     public CreateUserResponse createParamedic(CreateParamedicRequest request) {
         log.info("Creating paramedic with email: {}", request.getEmail());
 
-        CreatedAccountDto accountDto = createAndRegisterParamedic(request.getEmail(), null, request.getBonusPolicyId());
+        CreatedAccountDto accountDto = createAndRegisterParamedic(request.getEmail(), request.getBonusPolicyId());
 
         String message = String.format(
             "Paramedic with email: %s created successfully",
@@ -41,9 +43,9 @@ public class ParamedicService {
         return new CreateUserResponse(message, accountDto.getPassword(), accountDto.getTempPasswordExpirationHours());
     }
 
-    private CreatedAccountDto createAndRegisterParamedic(String email, String password, UUID bonusPolicyId) {
+    private CreatedAccountDto createAndRegisterParamedic(String email, UUID bonusPolicyId) {
 
-        authService.validateEmailNotRegistered(email);
+        accountService.validateEmailNotRegistered(email);
 
         Role role = roleRepository.findByName(UserRole.PARAMEDIC).orElseThrow(
             () -> {
@@ -52,7 +54,7 @@ public class ParamedicService {
                     String.format("Role with name: %s not found", UserRole.PARAMEDIC));
             });
 
-        var accountDto = accountService.createAccount(email, password, role);
+        var accountDto = accountService.createAccount(email, null, role);
         var account = accountDto.getAccount();
         save(account, bonusPolicyId);
 

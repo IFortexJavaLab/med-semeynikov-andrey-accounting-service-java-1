@@ -45,7 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Validated
 @Slf4j
 @RestController
@@ -55,12 +55,12 @@ import java.util.UUID;
 @Tag(name = "Admin functions API")
 public class AdminController {
 
-    final AuthService authService;
-    final AccountService userService;
-    final AccountService accountService;
-    final ClientService clientService;
-    final AdminService adminService;
-    private final ParamedicService paramedicService;
+    AuthService authService;
+    AccountService userService;
+    AccountService accountService;
+    ClientService clientService;
+    AdminService adminService;
+    ParamedicService paramedicService;
 
     @Operation(summary = "Update user profile", description = "Allows admins to update user information.")
     @PatchMapping("{accountId}")
@@ -97,7 +97,7 @@ public class AdminController {
     ) {
 
         log.info("Request to search with parameters through users");
-        Page<UserListViewDto> result = accountService.searchUsers(request, page, size);
+        Page<UserListViewDto> result = accountService.searchAccounts(request, page, size);
         return ResponseEntity.ok(result.getContent());
     }
 
@@ -160,7 +160,7 @@ public class AdminController {
     public ResponseEntity<Void> blockUser(@RequestBody @Valid BlockUserRequest request) {
 
         log.info("Attempt to block user with account: {}", request.getAccountId());
-        userService.blockUser(request);
+        userService.blockAccount(request);
         return ResponseEntity.noContent().build();
     }
 
@@ -170,7 +170,7 @@ public class AdminController {
             "Unblocks a previously blocked user. Only ADMIN and SUPER_ADMIN can perform this action")
     @PatchMapping("/users/unblock")
     public ResponseEntity<Void> unblockUser(@RequestBody @Valid UnblockUserRequest request) {
-        userService.unblockUser(request);
+        userService.unblockAccount(request);
         return ResponseEntity.noContent().build();
     }
 
@@ -182,7 +182,7 @@ public class AdminController {
     public ResponseEntity<Void> softDeleteUser(@PathVariable("accountId") UUID accountId) {
 
         log.info("Attempt to delete account: {} with soft delete", accountId);
-        userService.softDeleteUser(accountId);
+        userService.softDelete(accountId);
         return ResponseEntity.noContent().build();
     }
 

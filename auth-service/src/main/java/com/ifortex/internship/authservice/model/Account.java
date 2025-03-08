@@ -1,10 +1,12 @@
 package com.ifortex.internship.authservice.model;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.ifortex.internship.authservice.model.constant.Provider;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -60,7 +62,7 @@ public class Account {
     private boolean isSoftDeleted = false;
 
     @Column(nullable = false)
-    private boolean isTwoFactorEnabled = false; //todo edit before commit
+    private boolean isTwoFactorEnabled = true;
 
     private Instant blockedUntil;
     private String firstName;
@@ -75,11 +77,15 @@ public class Account {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Provider provider = Provider.INTERNAL;
+
     @JsonManagedReference
     @OneToOne(mappedBy = "account", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private RefreshToken refreshToken;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne()
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 }

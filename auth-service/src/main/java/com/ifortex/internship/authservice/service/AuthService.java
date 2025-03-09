@@ -93,10 +93,6 @@ public class AuthService {
     public AuthResponse authenticateSocialUser(Account account) {
         UUID accountId = account.getAccountId();
         log.debug("Authenticating social user with account: {}", accountId);
-
-        if (account.isTwoFactorEnabled()) {
-            return authenticateWith2FA(account);
-        }
         return buildAuthResponse(account);
     }
 

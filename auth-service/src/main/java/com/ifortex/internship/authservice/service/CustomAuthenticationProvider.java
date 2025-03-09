@@ -1,10 +1,10 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
-import com.ifortex.internship.authservice.exception.custom.UserBlockedException;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.repository.AccountRepository;
+import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
+import com.ifortex.internship.medstarter.exception.custom.UserBlockedException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;

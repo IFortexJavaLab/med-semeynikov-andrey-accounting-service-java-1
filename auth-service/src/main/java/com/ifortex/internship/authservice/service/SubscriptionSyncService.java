@@ -1,11 +1,11 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.exception.custom.StripeServiceException;
 import com.ifortex.internship.authservice.model.Client;
 import com.ifortex.internship.authservice.model.stripe.StripeSubscription;
 import com.ifortex.internship.authservice.model.stripe.SubscriptionStatus;
 import com.ifortex.internship.authservice.repository.ClientRepository;
 import com.ifortex.internship.authservice.repository.SubscriptionRepository;
+import com.ifortex.internship.medstarter.exception.custom.StripeServiceException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Subscription;
 import jakarta.annotation.PostConstruct;

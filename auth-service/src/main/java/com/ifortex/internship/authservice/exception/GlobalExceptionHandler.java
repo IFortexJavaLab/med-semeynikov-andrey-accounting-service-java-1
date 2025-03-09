@@ -1,5 +1,6 @@
 package com.ifortex.internship.authservice.exception;
 
+import com.ifortex.internship.medstarter.exception.MedServiceException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +24,8 @@ public class GlobalExceptionHandler {
 
     private static final String MESSAGE = "message";
 
-    @ExceptionHandler(AuthServiceException.class)
-    public ResponseEntity<Map<String, String>> handleAuthServiceExceptions(AuthServiceException ex) {
+    @ExceptionHandler(MedServiceException.class)
+    public ResponseEntity<Map<String, String>> handleAuthServiceExceptions(MedServiceException ex) {
 
         ResponseStatus statusAnnotation = ex.getClass().getAnnotation(ResponseStatus.class);
         HttpStatus status =

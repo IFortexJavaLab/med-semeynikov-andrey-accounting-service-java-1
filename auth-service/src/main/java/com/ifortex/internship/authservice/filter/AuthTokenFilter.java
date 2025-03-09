@@ -1,9 +1,9 @@
 package com.ifortex.internship.authservice.filter;
 
-import com.ifortex.internship.authservice.exception.AuthServiceException;
-import com.ifortex.internship.authservice.exception.custom.AuthorizationException;
 import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.medstarter.exception.MedServiceException;
+import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -28,12 +29,14 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     private final TokenService tokenService;
 
+    private static final int BEARER_PREFIX_LENGTH = 7;
+
     @Override
     protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain)
-            throws ServletException, IOException {
+        @NonNull HttpServletRequest request,
+        @NonNull HttpServletResponse response,
+        @NonNull FilterChain filterChain)
+        throws ServletException, IOException {
         try {
 
             log.debug("AuthTokenFilter started for: {}", request.getRequestURI());
@@ -53,10 +56,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
             throw new AuthorizationException("Invalid JWT token");
 
-        } catch (AuthServiceException e) {
+        } catch (MedServiceException e) {
             log.debug("Authentication service exception message: {}", e.getMessage());
             response.sendError(
-                    HttpServletResponse.SC_UNAUTHORIZED);
+                HttpServletResponse.SC_UNAUTHORIZED);
             return;
         } catch (Exception e) {
             log.debug("Cannot set user authentication: {}", e.getMessage());
@@ -69,23 +72,25 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         log.debug("Authentication user started");
 
         String username = tokenService.getUsernameFromToken(jwt);
-        String userId = tokenService.getUserIdFromToken(jwt);
+        UUID userId = UUID.fromString(tokenService.getUserIdFromToken(jwt));
         Boolean hasActiveSubscription = tokenService.hasActiveSubscriptionFromToken(jwt);
+        Boolean isSuperAdmin = tokenService.isSuperAdmin(jwt);
         Optional<LocalDateTime> subscriptionEndDate = tokenService.getSubscriptionEndDateFromToken(jwt);
         Collection<? extends GrantedAuthority> authorities = tokenService.getAuthorityFromToken(jwt);
 
         UserDetailsImpl userDetails =
-                UserDetailsImpl.builder()
-                        .email(username)
-                        .userId(userId)
-                        .hasActiveSubscription(hasActiveSubscription)
-                        .authorities(authorities)
-                        .build();
+            UserDetailsImpl.builder()
+                .email(username)
+                .accountId(userId)
+                .hasActiveSubscription(hasActiveSubscription)
+                .authorities(authorities)
+                .isSuperAdmin(isSuperAdmin)
+                .build();
 
         subscriptionEndDate.ifPresent(userDetails::setSubscriptionEndDate);
 
         UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);
+            new UsernamePasswordAuthenticationToken(userDetails, jwt, authorities);
 
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
@@ -95,10 +100,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     }
 
     private String parseJwt(HttpServletRequest request) {
-        int BEARER_PREFIX_LENGTH = 7;
+
         String headerAuth = request.getHeader("Authorization");
         return headerAuth != null && headerAuth.startsWith("Bearer ")
-                ? headerAuth.substring(BEARER_PREFIX_LENGTH)
-                : null;
+            ? headerAuth.substring(BEARER_PREFIX_LENGTH)
+            : null;
     }
 }

@@ -15,10 +15,10 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
 
     @Override
     public void handle(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            AccessDeniedException accessDeniedException)
-            throws IOException {
+        HttpServletRequest request,
+        HttpServletResponse response,
+        AccessDeniedException accessDeniedException)
+        throws IOException {
         log.debug("Forbidden error: {}", accessDeniedException.getMessage());
 
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -26,9 +26,9 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         response.setCharacterEncoding("UTF-8");
 
         String jsonResponse =
-                String.format(
-                        "{\"status\": %d, \"message\": \"%s\"}",
-                        HttpServletResponse.SC_FORBIDDEN, "Access is denied: insufficient permissions");
+            String.format(
+                "{\"status\": %d, \"message\": \"%s\"}",
+                HttpServletResponse.SC_FORBIDDEN, "Access is denied: insufficient permissions");
 
         response.getWriter().write(jsonResponse);
         response.getWriter().flush();

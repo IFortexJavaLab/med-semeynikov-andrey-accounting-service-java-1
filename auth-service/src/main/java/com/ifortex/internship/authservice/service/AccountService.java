@@ -14,7 +14,6 @@ import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.UserListViewDto;
-import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
@@ -60,14 +59,17 @@ public class AccountService {
     static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
     static final String LOG_SENDING_EMAIL_ERROR = "Error during sending verification email for: {}. There details: {}";
 
+    static final String PASSWORD_RESET = "Password reset";
+    static final String EMAIL_CHANGE = "Email change";
+
     StripeService stripeService;
     AccountRepository accountRepository;
     PasswordEncoder passwordEncoder;
     AuthService authService;
     RedisService redisService;
-    EmailService emailService;
     UserMapper userMapper;
     PasswordGenerator passwordGenerator;
+    UserNotificationService userNotificationService;
 
     @PersistenceContext
     EntityManager entityManager;
@@ -187,7 +189,7 @@ public class AccountService {
         log.debug("Otp saved to db successfully for user with ID: {}", userId);
 
         try {
-            emailService.sendVerificationEmail(currentEmail, "Email change", otp);
+            userNotificationService.sendVerificationEmail(newEmail, EMAIL_CHANGE, otp);
         } catch (MessagingException e) {
             log.error(LOG_SENDING_EMAIL_ERROR, currentEmail, e.getMessage());
             throw new EmailSendException("Failed to send verification email");
@@ -253,7 +255,7 @@ public class AccountService {
         log.debug("Otp saved to db successfully for user: {}", email);
 
         try {
-            emailService.sendVerificationEmail(email, "Password reset", otp);
+            userNotificationService.sendVerificationEmail(email, PASSWORD_RESET, otp);
         } catch (MessagingException e) {
             log.error(LOG_SENDING_EMAIL_ERROR, email, e.getMessage());
             throw new EmailSendException(String.format("Failed to send verification email to the: %s", email));

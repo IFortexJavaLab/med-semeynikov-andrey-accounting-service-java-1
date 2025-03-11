@@ -7,7 +7,6 @@ import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse;
 import com.ifortex.internship.authservice.dto.response.TokensResponse;
-import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
@@ -53,10 +52,12 @@ public class AuthService {
     static final String LOG_SENDING_EMAIL_ERROR = "Error during sending 2FA verification email for: {}. StackTrace: {}";
     static final String LOG_PASSWORD_HAS_BEEN_RESET = "Password has been reset for user: {} by admin: {}";
 
+    static final String PASSWORD_RESET = "Password reset";
+    static final String VERIFICATION_CODE_2FA = "2FA Verification Code";
+
     static final int ROLE_LENGTH = 5;
 
     TokenService tokenService;
-    EmailService emailService;
     RedisService redisService;
     PasswordEncoder passwordEncoder;
     AccountRepository accountRepository;
@@ -71,6 +72,7 @@ public class AuthService {
     @Value("${app.refreshTokenExpirationS}") Long refreshTokenExpirationS;
     @Value("${app.link.resetPasswordEmail}") String resetLink;
     @Value("${app.link.verifyOtpLogin}") String verifyOtpLink;
+    private final UserNotificationService userNotificationService;
 
     public AuthResponse authenticateUser(LoginRequest loginRequest) {
         String accountEmail = loginRequest.getEmail();
@@ -244,7 +246,7 @@ public class AuthService {
 
         String resetMessage = String.format(resetLink, account.getEmail());
         try {
-            emailService.sendPasswordResetRequestEmail(account.getEmail(), "Password reset", resetMessage);
+            userNotificationService.sendPasswordResetRequestEmail(accountEmail, PASSWORD_RESET, resetMessage);
         } catch (MessagingException e) {
             log.error(LOG_SENDING_EMAIL_ERROR, accountEmail, e.getMessage());
             throw new EmailSendException(String.format("Failed to send Password reset request to the email: %s", accountEmail));
@@ -266,16 +268,17 @@ public class AuthService {
         log.debug("Otp for user with account: {} generated and saved successfully", accountId);
 
         try {
-            emailService.sendVerificationEmail(accountEmail, "2FA Verification Code", otp);
+            userNotificationService.sendVerificationEmail(accountEmail, VERIFICATION_CODE_2FA, otp);
         } catch (MessagingException e) {
             log.error(LOG_SENDING_EMAIL_ERROR, account, e.getMessage());
             throw new EmailSendException(String.format("Failed to send 2FA verification email to the: %s", account));
         }
 
+        log.info("Email with otp sent to email: {}", accountEmail);
         String
             message =
             String.format("Two-factor authentication is required to complete your login. A verification code has been sent "
-                          + "to your email: %s. Please enter the code along with your email at the following link: ", account);
+                          + "to your email: %s. Please enter the code along with your email at the following link: ", accountEmail);
         return AuthResponse.builder()
             .message(message)
             .link(verifyOtpLink)

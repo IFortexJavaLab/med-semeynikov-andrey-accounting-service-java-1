@@ -7,9 +7,9 @@ import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
-import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.service.AccountService;
-import com.ifortex.internship.authservice.service.AuthService;
+import com.ifortex.internship.medstarter.security.model.UserDetailsImpl;
+import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,8 +40,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final AccountService userService;
-    private final AuthService authService;
     private final AccountService accountService;
+    private final AuthenticationFacade authenticationFacade;
 
     @Operation(summary = "Update user", description = "Allows updating user information.")
     @PatchMapping
@@ -81,7 +81,7 @@ public class UserController {
         @NotBlank(message = "Email cannot be empty")
         String newEmail) {
 
-        var userId = authService.getAccountIdFromAuthentication();
+        var userId = authenticationFacade.getAccountIdFromAuthentication();
         log.info("Request to change email for user with ID: {}", userId);
         ChangeEmailResponse response = userService.changeEmailRequest(newEmail);
         return ResponseEntity.ok(response);
@@ -99,7 +99,7 @@ public class UserController {
             regexp = "^\\d{6}$",
             message = "One-time password must consist of exactly 6 digits")
         String code) {
-        var userId = authService.getAccountIdFromAuthentication();
+        var userId = authenticationFacade.getAccountIdFromAuthentication();
         log.info("Request to confirm changing email for user with ID: {}", userId);
         ChangeEmailResponse response = userService.changeEmailConfirm(newEmail, code);
         return ResponseEntity.ok(response);

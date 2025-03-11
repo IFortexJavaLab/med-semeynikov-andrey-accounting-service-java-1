@@ -11,3 +11,4 @@ logging:
       ifortex:
         internship:
           authservice: DEBUG
+          medstarter: DEBUG

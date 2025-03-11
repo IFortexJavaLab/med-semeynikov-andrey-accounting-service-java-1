@@ -2,7 +2,6 @@ package com.ifortex.internship.authservice.service;
 
 import com.ifortex.internship.authservice.dto.request.LoginRequest;
 import com.ifortex.internship.authservice.dto.request.VerifyLoginOtpRequest;
-import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse;
@@ -10,9 +9,7 @@ import com.ifortex.internship.authservice.dto.response.TokensResponse;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.RefreshToken;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
-import com.ifortex.internship.authservice.model.UserDetailsImpl;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
-import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.repository.RefreshTokenRepository;
 import com.ifortex.internship.authservice.repository.TemporaryPasswordRepository;
@@ -22,6 +19,9 @@ import com.ifortex.internship.medstarter.exception.custom.EmailSendException;
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.medstarter.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.medstarter.exception.custom.InvalidRequestException;
+import com.ifortex.internship.medstarter.security.dto.AdminDetailsDto;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
 import jakarta.mail.MessagingException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -55,8 +54,6 @@ public class AuthService {
     static final String PASSWORD_RESET = "Password reset";
     static final String VERIFICATION_CODE_2FA = "2FA Verification Code";
 
-    static final int ROLE_LENGTH = 5;
-
     TokenService tokenService;
     RedisService redisService;
     PasswordEncoder passwordEncoder;
@@ -65,6 +62,8 @@ public class AuthService {
     RefreshTokenRepository refreshTokenRepository;
     TemporaryPasswordRepository passwordRepository;
     CustomAuthenticationProvider authenticationProvider;
+    AuthenticationFacade authenticationFacade;
+    UserNotificationService userNotificationService;
 
     @Value("${app.jwtExpirationS}") Long jwtExpirationS;
     @Value("${app.otp.loginExpirationMinutes}") int loginOtpExpirationMinutes;
@@ -72,7 +71,6 @@ public class AuthService {
     @Value("${app.refreshTokenExpirationS}") Long refreshTokenExpirationS;
     @Value("${app.link.resetPasswordEmail}") String resetLink;
     @Value("${app.link.verifyOtpLogin}") String verifyOtpLink;
-    private final UserNotificationService userNotificationService;
 
     public AuthResponse authenticateUser(LoginRequest loginRequest) {
         String accountEmail = loginRequest.getEmail();
@@ -125,7 +123,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse logoutUser() {
-        String userEmail = getUserEmailFromAuthentication();
+        String userEmail = authenticationFacade.getUserEmailFromAuthentication();
         log.info("Logout attempt for user: {}", userEmail);
         refreshTokenRepository.deleteRefreshTokenByAccountEmail(userEmail);
         log.debug(LOG_REFRESH_TOKEN_DELETED, userEmail);
@@ -134,36 +132,10 @@ public class AuthService {
         return AuthResponse.builder().message(String.format("Logout successful for user %s", userEmail)).build();
     }
 
-    public String getUserEmailFromAuthentication() {
-        UserDetailsImpl principle = validateAuthenticatedUser();
-        return principle.getEmail();
-    }
-
-    public UUID getAccountIdFromAuthentication() {
-        UserDetailsImpl principle = validateAuthenticatedUser();
-        return principle.getAccountId();
-    }
-
-    public AdminDetailsDto getAdminDetailsFromAuthentication() {
-        UserDetailsImpl principle = validateAuthenticatedUser();
-        List<UserRole> roles = principle.
-            getAuthorities().stream()
-            .map(authority ->
-                UserRole.valueOf(authority.getAuthority().substring(ROLE_LENGTH)))
-            .toList();
-
-        UserRole roleType = null;
-        if (!roles.isEmpty()) {
-            roleType = roles.getFirst();
-        }
-        return new AdminDetailsDto(principle.getAccountId(),
-            principle.getEmail(), roleType, principle.getIsSuperAdmin());
-    }
-
     @Transactional
     public TemporaryPasswordResponse resetPasswordWithTemp(UUID accountId) {
         log.debug("Initiating password reset for user with account ID: {}", accountId);
-        AdminDetailsDto adminDetails = getAdminDetailsFromAuthentication();
+        AdminDetailsDto adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
 
         Account account = accountRepository.findByAccountId(accountId).orElseThrow(() -> {
             log.error(LOG_ACCOUNT_NOT_FOUND_ID, accountId);
@@ -225,7 +197,7 @@ public class AuthService {
     public SuccessResponse resetPasswordWithEmail(UUID accountId) {
         log.debug("Initiating password reset request email for user with ID: {}", accountId);
 
-        AdminDetailsDto adminDetails = getAdminDetailsFromAuthentication();
+        AdminDetailsDto adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
 
         Account account = accountRepository.findByAccountId(accountId).orElseThrow(() -> {
             log.error(LOG_ACCOUNT_NOT_FOUND_ID, accountId);
@@ -287,15 +259,6 @@ public class AuthService {
 
     public Authentication createAuthentication(String accountEmail, String password) {
         return authenticationProvider.authenticate(new UsernamePasswordAuthenticationToken(accountEmail, password));
-    }
-
-    private UserDetailsImpl validateAuthenticatedUser() {
-        Object principle = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if ("anonymousUser".equals(principle.toString())) {
-            log.debug("Attempt to get user details by anonymous or unauthenticated user.");
-            throw new AuthorizationException("User is not authenticated. Please log in.");
-        }
-        return (UserDetailsImpl) principle;
     }
 
     private void deleteOldTemporaryPassword(Account account) {

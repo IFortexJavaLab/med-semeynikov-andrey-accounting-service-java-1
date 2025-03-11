@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.model;
 
-import com.ifortex.internship.authservice.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

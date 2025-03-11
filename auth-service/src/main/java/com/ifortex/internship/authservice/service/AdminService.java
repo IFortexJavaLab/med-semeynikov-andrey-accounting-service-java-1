@@ -1,17 +1,18 @@
 package com.ifortex.internship.authservice.service;
 
 import com.ifortex.internship.authservice.dto.request.CreateAdminRequest;
-import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
 import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Admin;
 import com.ifortex.internship.authservice.model.Role;
-import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.AdminRepository;
 import com.ifortex.internship.authservice.repository.RoleRepository;
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.medstarter.exception.custom.ForbiddenActionException;
+import com.ifortex.internship.medstarter.security.dto.AdminDetailsDto;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -26,9 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminService {
 
     AdminRepository adminRepository;
-    AuthService authService;
     RoleRepository roleRepository;
     AccountService accountService;
+    AuthenticationFacade authenticationFacade;
 
     @Transactional
     public CreateUserResponse createAdmin(CreateAdminRequest request) {
@@ -36,7 +37,7 @@ public class AdminService {
         String email = request.getEmail();
         log.info("Creating admin with email: {}", email);
 
-        AdminDetailsDto adminDetails = authService.getAdminDetailsFromAuthentication();
+        AdminDetailsDto adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
         boolean isCreatedSuperAdmin = request.isSuper();
         boolean isCreatingSuperAdmin = adminDetails.isSuperAdmin();
 

@@ -5,7 +5,6 @@ import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Admin;
 import com.ifortex.internship.authservice.model.Client;
 import com.ifortex.internship.authservice.model.RefreshToken;
-import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.model.stripe.StripeSubscription;
 import com.ifortex.internship.authservice.model.stripe.SubscriptionStatus;
 import com.ifortex.internship.authservice.repository.AdminRepository;
@@ -14,32 +13,24 @@ import com.ifortex.internship.medstarter.exception.MedServiceException;
 import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.medstarter.exception.custom.UserBlockedException;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
+import com.ifortex.internship.medstarter.security.service.JwtTokenValidator;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.UnsupportedJwtException;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-import javax.crypto.SecretKey;
+
+import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.CLAIM_ACCOUNT_ID;
+import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.CLAIM_ROLE;
+import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.HAS_ACTIVE_SUBSCRIPTION_CLAIM;
+import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.IS_SUPER_ADMIN_CLAIM;
 
 @Slf4j
 @Service
@@ -49,19 +40,10 @@ public class TokenService {
     private final RefreshTokenService refreshTokenService;
     private final ClientRepository clientRepository;
     private final AdminRepository adminRepository;
-    @Value("${app.jwtSecret}")
-    private final String jwtSecret;
+    JwtTokenValidator jwtTokenValidator;
 
-    @Value("${app.jwtExpirationS}")
-    private final long jwtExpirationS;
-
-    @Value("${app.refreshTokenExpirationS}")
-    private final long refreshTokenExpirationS;
-
-    private static final String HAS_ACTIVE_SUBSCRIPTION_CLAIM = "hasActiveSubscription";
-    private static final String IS_SUPER_ADMIN_CLAIM = "isSuperAdmin";
-    private static final String ROLE = "ROLE_";
-    private static final String CLAIM_ACCOUNT_ID = "accountId";
+    @Value("${app.jwtExpirationS}") private final long jwtExpirationS;
+    @Value("${app.refreshTokenExpirationS}") private final long refreshTokenExpirationS;
 
     public String generateAccessToken(Account account) {
 
@@ -71,7 +53,7 @@ public class TokenService {
         var role = account.getRole().getName();
         UUID accountId = account.getAccountId();
 
-        claims.put("role", role);
+        claims.put(CLAIM_ROLE, role);
 
         switch (role) {
             case CLIENT:
@@ -121,7 +103,7 @@ public class TokenService {
             .claims(claims)
             .issuedAt(new Date(System.currentTimeMillis()))
             .expiration(new Date(System.currentTimeMillis() + Duration.ofSeconds(jwtExpirationS).toMillis()))
-            .signWith(getSigningKey())
+            .signWith(jwtTokenValidator.getSigningKey())
             .compact();
     }
 
@@ -155,104 +137,8 @@ public class TokenService {
             newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS);
     }
 
-    public boolean isValid(String authToken) {
-
-        try {
-            Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(authToken);
-            log.debug("Access token is valid");
-            return true;
-        } catch (SignatureException e) {
-            log.debug("Invalid JWT signature: {}", e.getMessage());
-            throw new AuthorizationException("JWT token is invalid. Please log in again.");
-        } catch (MalformedJwtException e) {
-            log.debug("Invalid JWT token: {}", e.getMessage());
-            throw new AuthorizationException("JWT token is malformed. Please log in again.");
-        } catch (UnsupportedJwtException e) {
-            log.debug("JWT token is unsupported: {}", e.getMessage());
-            throw new AuthorizationException("JWT token is unsupported. Please log in again.");
-        } catch (IllegalArgumentException e) {
-            log.debug("JWT claims string is empty: {}", e.getMessage());
-            throw new AuthorizationException("JWT claims string is empty. Please log in again.");
-        } catch (ExpiredJwtException e) {
-            log.debug("JWT token is expired: {}", e.getMessage());
-        }
-
-        return false;
-    }
-
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
-        return Keys.hmacShaKeyFor(keyBytes);
-    }
-
     public RefreshToken createRefreshToken(String email) {
         return refreshTokenService.createRefreshToken(email);
-    }
-
-    public String getUsernameFromToken(String token) {
-        return Jwts.parser()
-            .verifyWith(getSigningKey())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload()
-            .getSubject();
-    }
-
-    public String getUserIdFromToken(String token) {
-        return Jwts.parser()
-            .verifyWith(getSigningKey())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload()
-            .get(CLAIM_ACCOUNT_ID, String.class);
-    }
-
-    public Boolean hasActiveSubscriptionFromToken(String token) {
-        return Jwts.parser()
-            .verifyWith(getSigningKey())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload()
-            .get(HAS_ACTIVE_SUBSCRIPTION_CLAIM, Boolean.class);
-    }
-
-    public Boolean isSuperAdmin(String token) {
-        return Jwts.parser()
-            .verifyWith(getSigningKey())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload()
-            .get(IS_SUPER_ADMIN_CLAIM, Boolean.class);
-    }
-
-    public Optional<LocalDateTime> getSubscriptionEndDateFromToken(String token) {
-        Long subscriptionEndDate =
-            Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .get("subscriptionEndDate", Long.class);
-        return Optional.ofNullable(subscriptionEndDate)
-            .map(date -> LocalDateTime.ofEpochSecond(date, 0, ZoneOffset.UTC));
-    }
-
-    public Collection<SimpleGrantedAuthority> getAuthorityFromToken(String token) {
-
-        log.debug("Getting authorities from access token");
-
-        final Claims claims =
-            Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
-
-        UserRole role = UserRole.valueOf(claims.get("role", String.class));
-
-        log.debug("Got roles from token: {}", role);
-
-        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(ROLE + role.name()));
-
-        log.debug("Made authority from roles: {}", authorities);
-
-        return authorities;
     }
 
 }

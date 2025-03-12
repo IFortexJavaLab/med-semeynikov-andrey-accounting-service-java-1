@@ -54,7 +54,7 @@ public class AuthService {
     static final String PASSWORD_RESET = "Password reset";
     static final String VERIFICATION_CODE_2FA = "2FA Verification Code";
 
-    TokenService tokenService;
+    JwtTokenIssuer jwtTokenIssuer;
     RedisService redisService;
     PasswordEncoder passwordEncoder;
     AccountRepository accountRepository;
@@ -271,10 +271,10 @@ public class AuthService {
     }
 
     private AuthResponse buildAuthResponse(Account account) {
-        String newAccessToken = tokenService.generateAccessToken(account);
+        String newAccessToken = jwtTokenIssuer.generateAccessToken(account);
         log.debug("Access token generated successfully for account: {}", account.getEmail());
 
-        RefreshToken newRefreshToken = tokenService.createRefreshToken(account.getEmail());
+        RefreshToken newRefreshToken = jwtTokenIssuer.createRefreshToken(account.getEmail());
 
         return AuthResponse.builder()
             .tokens(new TokensResponse(newAccessToken, newRefreshToken.getToken(), jwtExpirationS, refreshTokenExpirationS))

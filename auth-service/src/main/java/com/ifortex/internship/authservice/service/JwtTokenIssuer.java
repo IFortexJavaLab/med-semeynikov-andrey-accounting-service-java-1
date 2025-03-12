@@ -15,7 +15,9 @@ import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundExceptio
 import com.ifortex.internship.medstarter.exception.custom.UserBlockedException;
 import com.ifortex.internship.medstarter.security.service.JwtTokenValidator;
 import io.jsonwebtoken.Jwts;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -32,18 +34,19 @@ import static com.ifortex.internship.medstarter.security.model.constant.JwtConst
 import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.HAS_ACTIVE_SUBSCRIPTION_CLAIM;
 import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.IS_SUPER_ADMIN_CLAIM;
 
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TokenService {
+public class JwtTokenIssuer {
 
-    private final RefreshTokenService refreshTokenService;
-    private final ClientRepository clientRepository;
-    private final AdminRepository adminRepository;
+    RefreshTokenService refreshTokenService;
+    ClientRepository clientRepository;
+    AdminRepository adminRepository;
     JwtTokenValidator jwtTokenValidator;
 
-    @Value("${app.jwtExpirationS}") private final long jwtExpirationS;
-    @Value("${app.refreshTokenExpirationS}") private final long refreshTokenExpirationS;
+    @Value("${app.jwtExpirationS}") long jwtExpirationS;
+    @Value("${app.refreshTokenExpirationS}") long refreshTokenExpirationS;
 
     public String generateAccessToken(Account account) {
 

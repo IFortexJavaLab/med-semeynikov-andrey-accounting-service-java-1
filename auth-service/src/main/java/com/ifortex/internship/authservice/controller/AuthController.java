@@ -7,7 +7,7 @@ import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.TokensResponse;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.ClientService;
-import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.authservice.service.JwtTokenIssuer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,7 +32,7 @@ import java.net.URI;
 public class AuthController {
 
     private final AuthService authService;
-    private final TokenService tokenService;
+    private final JwtTokenIssuer jwtTokenIssuer;
     private final ClientService clientService;
 
     @Operation(summary = "User registration", description = "Registers a new user in the system.")
@@ -93,7 +93,7 @@ public class AuthController {
 
         log.info("Tokens refresh attempt.");
 
-        TokensResponse tokens = tokenService.refreshTokens(refreshToken);
+        TokensResponse tokens = jwtTokenIssuer.refreshTokens(refreshToken);
         log.info("Tokens refreshed successfully.");
 
         return ResponseEntity.ok().body(tokens);

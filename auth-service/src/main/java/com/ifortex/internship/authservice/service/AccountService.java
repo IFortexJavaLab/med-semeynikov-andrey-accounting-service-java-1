@@ -8,18 +8,15 @@ import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
 import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
 import com.ifortex.internship.authservice.dto.response.AccountDto;
-import com.ifortex.internship.authservice.dto.response.AdminDetailsDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.UserListViewDto;
-import com.ifortex.internship.authservice.email.EmailService;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
 import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
-import com.ifortex.internship.authservice.model.constant.UserRole;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.util.PasswordGenerator;
 import com.ifortex.internship.authservice.util.UserMapper;
@@ -30,6 +27,9 @@ import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundExceptio
 import com.ifortex.internship.medstarter.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.medstarter.exception.custom.InternalServiceException;
 import com.ifortex.internship.medstarter.exception.custom.InvalidRequestException;
+import com.ifortex.internship.medstarter.security.dto.AdminDetailsDto;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
 import com.stripe.exception.StripeException;
 import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityManager;
@@ -60,14 +60,18 @@ public class AccountService {
     static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
     static final String LOG_SENDING_EMAIL_ERROR = "Error during sending verification email for: {}. There details: {}";
 
+    static final String PASSWORD_RESET = "Password reset";
+    static final String EMAIL_CHANGE = "Email change";
+
     StripeService stripeService;
     AccountRepository accountRepository;
     PasswordEncoder passwordEncoder;
     AuthService authService;
     RedisService redisService;
-    EmailService emailService;
     UserMapper userMapper;
     PasswordGenerator passwordGenerator;
+    UserNotificationService userNotificationService;
+    AuthenticationFacade authenticationFacade;
 
     @PersistenceContext
     EntityManager entityManager;
@@ -164,8 +168,8 @@ public class AccountService {
 
     @Transactional
     public ChangeEmailResponse changeEmailRequest(String newEmail) {
-        var currentEmail = authService.getUserEmailFromAuthentication();
-        var userId = authService.getAccountIdFromAuthentication();
+        var currentEmail = authenticationFacade.getUserEmailFromAuthentication();
+        var userId = authenticationFacade.getAccountIdFromAuthentication();
 
         if (currentEmail.equals(newEmail)) {
             log.error("New provided email: {} is equal to the current one for user with ID: {}", newEmail, userId);
@@ -187,7 +191,7 @@ public class AccountService {
         log.debug("Otp saved to db successfully for user with ID: {}", userId);
 
         try {
-            emailService.sendVerificationEmail(currentEmail, "Email change", otp);
+            userNotificationService.sendVerificationEmail(newEmail, EMAIL_CHANGE, otp);
         } catch (MessagingException e) {
             log.error(LOG_SENDING_EMAIL_ERROR, currentEmail, e.getMessage());
             throw new EmailSendException("Failed to send verification email");
@@ -204,8 +208,8 @@ public class AccountService {
 
     @Transactional
     public ChangeEmailResponse changeEmailConfirm(String newEmail, String code) {
-        var currentEmail = authService.getUserEmailFromAuthentication();
-        var userId = authService.getAccountIdFromAuthentication();
+        var currentEmail = authenticationFacade.getUserEmailFromAuthentication();
+        var userId = authenticationFacade.getAccountIdFromAuthentication();
 
         log.info("Changing email for user with ID: {}", userId);
         String redisKey = RedisKeyPrefix.EMAIL_CHANGE.getPrefix() + newEmail;
@@ -253,7 +257,7 @@ public class AccountService {
         log.debug("Otp saved to db successfully for user: {}", email);
 
         try {
-            emailService.sendVerificationEmail(email, "Password reset", otp);
+            userNotificationService.sendVerificationEmail(email, PASSWORD_RESET, otp);
         } catch (MessagingException e) {
             log.error(LOG_SENDING_EMAIL_ERROR, email, e.getMessage());
             throw new EmailSendException(String.format("Failed to send verification email to the: %s", email));
@@ -301,7 +305,7 @@ public class AccountService {
         log.debug("Blocking user with account: {}", request.getAccountId());
 
         var targetAccount = findAccountByAccountId(request.getAccountId());
-        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
+        AdminDetailsDto adminDetailsDto = authenticationFacade.getAdminDetailsFromAuthentication();
 
         validateSelfModification(targetAccount, "block");
         authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
@@ -318,7 +322,7 @@ public class AccountService {
         log.debug("Unblocking user with ID: {}", request.getUserId());
 
         var targetAccount = findAccountByAccountId(request.getUserId());
-        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
+        AdminDetailsDto adminDetailsDto = authenticationFacade.getAdminDetailsFromAuthentication();
 
         validateSelfModification(targetAccount, "unblock");
         authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
@@ -334,7 +338,7 @@ public class AccountService {
         log.debug("Deleting account: {} with soft delete", accountId);
 
         var targetAccount = findAccountByAccountId(accountId);
-        AdminDetailsDto adminDetailsDto = authService.getAdminDetailsFromAuthentication();
+        AdminDetailsDto adminDetailsDto = authenticationFacade.getAdminDetailsFromAuthentication();
 
         validateSelfModification(targetAccount, "soft delete"); // feature convert to enum
         authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
@@ -351,7 +355,7 @@ public class AccountService {
         log.debug("Deleting account: {} with hard delete", accountId);
 
         var account = findAccountByAccountId(accountId);
-        var adminDetails = authService.getAdminDetailsFromAuthentication();
+        var adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
         validateSelfModification(account, "hard delete");
         authService.validateUserModificationPermission(adminDetails, account);
 
@@ -373,7 +377,7 @@ public class AccountService {
     }
 
     private void validateSelfModification(Account account, String action) {
-        boolean isSelfModification = account.getAccountId().equals(authService.getAccountIdFromAuthentication());
+        boolean isSelfModification = account.getAccountId().equals(authenticationFacade.getAccountIdFromAuthentication());
         if (isSelfModification) {
             log.error("Attempt to {} oneself. User with account: {}", action, account.getAccountId());
             throw new ForbiddenActionException(String.format("You can't %s yourself", action));
@@ -382,7 +386,7 @@ public class AccountService {
 
     public AccountDto getUserProfileByAuthentication() {
 
-        UUID userId = authService.getAccountIdFromAuthentication();
+        UUID userId = authenticationFacade.getAccountIdFromAuthentication();
         log.info("Getting user profile for user with ID: {}", userId);
 
         var account = findAccountByAccountId(userId);
@@ -396,7 +400,7 @@ public class AccountService {
     @Transactional
     public AccountDto updateUserByAuthentication(UpdateAccountDto updateAccountDto) {
 
-        UUID accountId = authService.getAccountIdFromAuthentication();
+        UUID accountId = authenticationFacade.getAccountIdFromAuthentication();
         log.info("Updating account with ID: {}", accountId);
 
         var account = findAccountByAccountId(accountId);
@@ -413,7 +417,7 @@ public class AccountService {
     @Transactional
     public AccountDto updateAccountByAdmin(UUID targetAccountId, UpdateAccountDto updateAccountDto) {
 
-        var adminDetails = authService.getAdminDetailsFromAuthentication();
+        var adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
 
         log.debug("Updating account with ID: {} by admin with ID: {}", targetAccountId, adminDetails.getAccountId());
         var targetAccount = findAccountByAccountId(targetAccountId);
@@ -434,7 +438,7 @@ public class AccountService {
 
         //feature add specific data for each role
 
-        var adminId = authService.getAccountIdFromAuthentication();
+        var adminId = authenticationFacade.getAccountIdFromAuthentication();
         log.info("Getting account profile for user with ID: {} by Admin with ID: {}", accountId, adminId);
 
         var user = findAccountByAccountId(accountId);

@@ -13,6 +13,7 @@ import com.ifortex.internship.medstarter.exception.custom.ActiveSubscriptionAlre
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.medstarter.exception.custom.InvalidRequestException;
 import com.ifortex.internship.medstarter.exception.custom.StripeServiceException;
+import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
@@ -43,20 +44,20 @@ public class StripeService {
     static final String LOG_STRIPE_FAILED = "Stripe API call failed: {}. Error code: {}. StackTrace: ";
     static final int CENTS_IN_DOLLAR = 100;
 
-    AuthService authService;
+    AuthenticationFacade authenticationFacade;
     ClientRepository clientRepository;
     SubscriptionRepository subscriptionRepository;
 
     @Value("${app.stripe.url.cancel}") String cancelLink;
     @Value("${app.stripe.url.success}") String successLink;
 
-    public StripeService(final AuthService authService,
+    public StripeService(final AuthenticationFacade authenticationFacade,
                          final SubscriptionRepository subscriptionRepository,
                          final ClientRepository clientRepository,
                          @Value("${app.stripe.api.key}") final String stripeApiKey,
                          @Value("${app.stripe.url.cancel}") final String cancelLink,
                          @Value("${app.stripe.url.success}") final String successLink) {
-        this.authService = authService;
+        this.authenticationFacade = authenticationFacade;
         this.subscriptionRepository = subscriptionRepository;
         this.clientRepository = clientRepository;
         this.cancelLink = cancelLink;
@@ -129,7 +130,7 @@ public class StripeService {
     public PurchaseSubscriptionResponse createSubscriptionCheckoutSession(
         PurchaseSubscriptionRequest request) {
 
-        UUID accountId = authService.getAccountIdFromAuthentication();
+        UUID accountId = authenticationFacade.getAccountIdFromAuthentication();
         log.info("Starting subscription checkout session for account ID: {}", accountId);
 
         Client client =
@@ -216,7 +217,7 @@ public class StripeService {
 
     public void cancelSubscriptionForUser() {
 
-        UUID accountId = authService.getAccountIdFromAuthentication();
+        UUID accountId = authenticationFacade.getAccountIdFromAuthentication();
 
         Client client =
             clientRepository

@@ -3,8 +3,8 @@ package com.ifortex.internship.authservice.controller;
 import com.ifortex.internship.authservice.dto.request.PurchaseSubscriptionRequest;
 import com.ifortex.internship.authservice.dto.response.PurchaseSubscriptionResponse;
 import com.ifortex.internship.authservice.dto.response.SubscriptionPlanDto;
-import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.StripeService;
+import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,7 +24,7 @@ import java.util.List;
 public class SubscriptionController {
 
     private final StripeService stripeService;
-    private final AuthService authService;
+    private final AuthenticationFacade authenticationFacade;
 
     @GetMapping("/plans")
     public ResponseEntity<List<SubscriptionPlanDto>> getAvailableSubscriptions() {
@@ -35,7 +35,7 @@ public class SubscriptionController {
     @PostMapping("/subscribe")
     public ResponseEntity<PurchaseSubscriptionResponse> subscribe(
         @RequestBody PurchaseSubscriptionRequest request) {
-        log.info("Request for purchasing subscription from account: {}", authService.getAccountIdFromAuthentication());
+        log.info("Request for purchasing subscription from account: {}", authenticationFacade.getAccountIdFromAuthentication());
         return ResponseEntity.ok(stripeService.createSubscriptionCheckoutSession(request));
     }
 

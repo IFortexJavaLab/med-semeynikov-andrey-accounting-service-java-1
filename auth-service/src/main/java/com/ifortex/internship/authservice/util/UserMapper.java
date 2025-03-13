@@ -4,7 +4,7 @@ import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
 import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Role;
-import com.ifortex.internship.authservice.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

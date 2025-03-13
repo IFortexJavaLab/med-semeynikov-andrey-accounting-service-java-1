@@ -1,6 +1,6 @@
 package com.ifortex.internship.authservice.dto.response;
 
-import com.ifortex.internship.authservice.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

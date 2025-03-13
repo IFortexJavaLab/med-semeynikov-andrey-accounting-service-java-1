@@ -1,7 +1,7 @@
 package com.ifortex.internship.authservice.repository;
 
 import com.ifortex.internship.authservice.model.Role;
-import com.ifortex.internship.authservice.model.constant.UserRole;
+import com.ifortex.internship.medstarter.security.model.constant.UserRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

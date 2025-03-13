@@ -1,28 +1,19 @@
-# Исключить папку .idea (файлы настроек IntelliJ IDEA)
 /.idea/
 
-# Исключить сгенерированную папку .mvn в каждом модуле
 **/.mvn/
 
-# Исключить папку .mvn (Maven Wrapper)
 .mvn/
 
-# Исключить исполняемые скрипты Maven Wrapper
 mvnw
 mvnw.cmd
 
-# Исключить папки target (скомпилированный код и сборки)
 /target/
 **/target/
 
-
-# Исключить вспомогательный файл HELP.md
 HELP.md
-
 
 .gitattributes
 
-# Исключить системные и временные файлы
 *.log
 *.tmp
 *.swp

@@ -1,11 +1,11 @@
 package com.ifortex.internship.authservice.config;
 
-import com.ifortex.internship.authservice.filter.AuthEntryPointJwt;
-import com.ifortex.internship.authservice.filter.AuthTokenFilter;
-import com.ifortex.internship.authservice.filter.CustomAccessDeniedHandler;
 import com.ifortex.internship.authservice.service.CustomAuthenticationProvider;
 import com.ifortex.internship.authservice.service.OAuthService;
-import com.ifortex.internship.authservice.service.TokenService;
+import com.ifortex.internship.medstarter.security.filter.AuthEntryPointJwt;
+import com.ifortex.internship.medstarter.security.filter.AuthTokenFilter;
+import com.ifortex.internship.medstarter.security.filter.CustomAccessDeniedHandler;
+import com.ifortex.internship.medstarter.security.service.JwtTokenValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class AuthSecurityConfig {
 
-    private final TokenService tokenService;
+    private final JwtTokenValidator jwtTokenValidator;
     private final AuthEntryPointJwt unauthorizedHandler;
     private final CustomAccessDeniedHandler accessDeniedHandler;
     private final CustomAuthenticationProvider authenticationProvider;
@@ -33,7 +33,7 @@ public class AuthSecurityConfig {
 
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
-        return new AuthTokenFilter(tokenService);
+        return new AuthTokenFilter(jwtTokenValidator);
     }
 
     @Bean

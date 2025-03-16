@@ -19,6 +19,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
@@ -91,6 +93,15 @@ public class ClientService {
 
         log.info(LOG_USER_REGISTERED_SUCCESSFULLY, account.getEmail());
         return account;
+    }
+
+    public Client findClientByAccountId(UUID accountId) {
+        return clientRepository.findByAccountId(accountId).orElseThrow(
+            () -> {
+                log.error("Client with account: {} not found", accountId);
+                return new EntityNotFoundException(
+                    String.format("Client with account: %s not found", accountId));
+            });
     }
 
     private void save(Account account, String customerStripeId) {

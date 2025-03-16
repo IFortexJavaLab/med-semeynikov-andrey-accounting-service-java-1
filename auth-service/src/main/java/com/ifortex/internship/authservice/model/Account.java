@@ -27,12 +27,12 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.Instant;
 import java.util.UUID;
 
-@FilterDef(name = "Active",
+@FilterDef(name = Account.FILTER_ACTIVE,
     autoEnabled = true,
     applyToLoadByKey = true,
     defaultCondition = "is_soft_deleted = 'false'")
 
-@Filter(name = "Active")
+@Filter(name = Account.FILTER_ACTIVE)
 @Entity
 @Table(name = "account")
 @Getter
@@ -41,6 +41,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Accessors(chain = true)
 public class Account {
+
+    public static final String FILTER_ACTIVE = "Active";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

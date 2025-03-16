@@ -1,18 +1,13 @@
 package com.ifortex.internship.authservice.service;
 
-import com.ifortex.internship.authservice.dto.request.BlockUserRequest;
 import com.ifortex.internship.authservice.dto.request.ChangePasswordRequest;
 import com.ifortex.internship.authservice.dto.request.PasswordResetWithOtpDto;
 import com.ifortex.internship.authservice.dto.request.SocialUserInfo;
-import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
-import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
-import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.dto.response.AuthResponse;
 import com.ifortex.internship.authservice.dto.response.ChangeEmailResponse;
 import com.ifortex.internship.authservice.dto.response.CreatedAccountDto;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
-import com.ifortex.internship.authservice.dto.response.UserListViewDto;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Role;
 import com.ifortex.internship.authservice.model.TemporaryPassword;
@@ -20,29 +15,20 @@ import com.ifortex.internship.authservice.model.constant.RedisKeyPrefix;
 import com.ifortex.internship.authservice.repository.AccountRepository;
 import com.ifortex.internship.authservice.util.PasswordGenerator;
 import com.ifortex.internship.authservice.util.UserMapper;
+import com.ifortex.internship.authserviceapi.dto.response.AccountDto;
 import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
 import com.ifortex.internship.medstarter.exception.custom.EmailAlreadyRegistered;
 import com.ifortex.internship.medstarter.exception.custom.EmailSendException;
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
-import com.ifortex.internship.medstarter.exception.custom.ForbiddenActionException;
-import com.ifortex.internship.medstarter.exception.custom.InternalServiceException;
 import com.ifortex.internship.medstarter.exception.custom.InvalidRequestException;
-import com.ifortex.internship.medstarter.security.dto.AdminDetailsDto;
-import com.ifortex.internship.medstarter.security.model.constant.UserRole;
+import com.ifortex.internship.medstarter.model.constant.LinkConstants;
 import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
-import com.stripe.exception.StripeException;
 import jakarta.mail.MessagingException;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.Session;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,10 +37,10 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AccountService {
 
     static final String LOG_ACCOUNT_NOT_FOUND = "User with email: {} not found";
@@ -63,7 +49,6 @@ public class AccountService {
     static final String PASSWORD_RESET = "Password reset";
     static final String EMAIL_CHANGE = "Email change";
 
-    StripeService stripeService;
     AccountRepository accountRepository;
     PasswordEncoder passwordEncoder;
     AuthService authService;
@@ -73,15 +58,9 @@ public class AccountService {
     UserNotificationService userNotificationService;
     AuthenticationFacade authenticationFacade;
 
-    @PersistenceContext
-    EntityManager entityManager;
-
     @Value("${app.otp.emailExpirationMinutes}") int expirationMinutes;
     @Value("${app.otp.resetPasswordExpirationMinutes}") int resetPasswordExpirationMinutes;
     @Value("${app.tempPassword.expirationHours}") int tempPasswordExpirationHours;
-    @Value("${app.link.login}") String loginLink;
-    @Value("${app.link.changeEmail}") String changeEmailLink;
-    @Value("${app.link.resetPasswordConfirm}") String resetPasswordLink;
 
     @Transactional
     public CreatedAccountDto createAccount(String email, String password, Role role) {
@@ -161,7 +140,7 @@ public class AccountService {
 
         AuthResponse authResponse = authService.logoutUser();
         authResponse.setMessage(message);
-        authResponse.setLink(loginLink);
+        authResponse.setLink(LinkConstants.LOGIN);
 
         return authResponse;
     }
@@ -203,7 +182,7 @@ public class AccountService {
                 newEmail);
 
         log.info("An email with an otp has been sent to email: {} for user with ID: {}", newEmail, userId);
-        return new ChangeEmailResponse(message, changeEmailLink, expirationMinutes);
+        return new ChangeEmailResponse(message, LinkConstants.CHANGE_EMAIL, expirationMinutes);
     }
 
     @Transactional
@@ -238,7 +217,7 @@ public class AccountService {
         String message = "Changed email successfully, please log in again using this link:";
 
         log.info("Email was changed successfully for user with ID {}", userId);
-        return new ChangeEmailResponse(message, loginLink);
+        return new ChangeEmailResponse(message, LinkConstants.LOGIN);
     }
 
     public SuccessResponse passwordResetRequest(String email) {
@@ -264,7 +243,7 @@ public class AccountService {
         }
 
         String message = String.format("An email with a password reset code has been sent to your email: %s, please follow this link: ", email);
-        return new SuccessResponse(message, resetPasswordLink);
+        return new SuccessResponse(message, LinkConstants.RESET_PASSWORD_CONFIRM);
     }
 
     @Transactional
@@ -297,91 +276,7 @@ public class AccountService {
         log.info("User with email: {} successfully changed password", userEmail);
 
         String message = "Changed password successfully, please log in again using this link: ";
-        return new SuccessResponse(message, loginLink);
-    }
-
-    @Transactional
-    public void blockAccount(BlockUserRequest request) {
-        log.debug("Blocking user with account: {}", request.getAccountId());
-
-        var targetAccount = findAccountByAccountId(request.getAccountId());
-        AdminDetailsDto adminDetailsDto = authenticationFacade.getAdminDetailsFromAuthentication();
-
-        validateSelfModification(targetAccount, "block");
-        authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
-
-        targetAccount.setBlockedUntil(request.getExpiresAt());
-        targetAccount.setRefreshToken(null);
-        accountRepository.save(targetAccount);
-
-        log.debug("User with account: {} blocked successfully", targetAccount.getAccountId());
-    }
-
-    @Transactional
-    public void unblockAccount(UnblockUserRequest request) {
-        log.debug("Unblocking user with ID: {}", request.getUserId());
-
-        var targetAccount = findAccountByAccountId(request.getUserId());
-        AdminDetailsDto adminDetailsDto = authenticationFacade.getAdminDetailsFromAuthentication();
-
-        validateSelfModification(targetAccount, "unblock");
-        authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
-
-        targetAccount.setBlockedUntil(null);
-        accountRepository.save(targetAccount);
-
-        log.debug("User with account: {} unblocked successfully", targetAccount.getAccountId());
-    }
-
-    @Transactional
-    public void softDelete(UUID accountId) {
-        log.debug("Deleting account: {} with soft delete", accountId);
-
-        var targetAccount = findAccountByAccountId(accountId);
-        AdminDetailsDto adminDetailsDto = authenticationFacade.getAdminDetailsFromAuthentication();
-
-        validateSelfModification(targetAccount, "soft delete"); // feature convert to enum
-        authService.validateUserModificationPermission(adminDetailsDto, targetAccount);
-
-        targetAccount.setSoftDeleted(true);
-        targetAccount.setRefreshToken(null);
-        accountRepository.save(targetAccount);
-
-        log.info("Account: {} deleted successfully with soft delete", accountId);
-    }
-
-    @Transactional
-    public void hardDelete(UUID accountId) {
-        log.debug("Deleting account: {} with hard delete", accountId);
-
-        var account = findAccountByAccountId(accountId);
-        var adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
-        validateSelfModification(account, "hard delete");
-        authService.validateUserModificationPermission(adminDetails, account);
-
-        if (account.getRole().getName().equals(UserRole.CLIENT)) {
-            try {
-                stripeService.deleteUser(accountId);
-            } catch (StripeException e) {
-                log.error(
-                    "Stripe API call failed: {}. Error code: {}. StackTrace: ",
-                    e.getMessage(), e.getCode(), e);
-                throw new InternalServiceException(
-                    String.format(
-                        "Error occurred while deleting stripe customer account with account ID: %s", account.getAccountId()));
-            }
-        }
-        accountRepository.delete(account);
-
-        log.debug("Account: {} deleted successfully with hard delete", accountId);
-    }
-
-    private void validateSelfModification(Account account, String action) {
-        boolean isSelfModification = account.getAccountId().equals(authenticationFacade.getAccountIdFromAuthentication());
-        if (isSelfModification) {
-            log.error("Attempt to {} oneself. User with account: {}", action, account.getAccountId());
-            throw new ForbiddenActionException(String.format("You can't %s yourself", action));
-        }
+        return new SuccessResponse(message, LinkConstants.LOGIN);
     }
 
     public AccountDto getUserProfileByAuthentication() {
@@ -414,59 +309,6 @@ public class AccountService {
         return userMapper.userToClientDto(account);
     }
 
-    @Transactional
-    public AccountDto updateAccountByAdmin(UUID targetAccountId, UpdateAccountDto updateAccountDto) {
-
-        var adminDetails = authenticationFacade.getAdminDetailsFromAuthentication();
-
-        log.debug("Updating account with ID: {} by admin with ID: {}", targetAccountId, adminDetails.getAccountId());
-        var targetAccount = findAccountByAccountId(targetAccountId);
-
-        authService.validateUserModificationPermission(adminDetails, targetAccount);
-
-        userMapper.updateAccountFromDto(updateAccountDto, targetAccount);
-
-        accountRepository.save(targetAccount);
-        log.debug("Account with ID: {} saved to db", targetAccountId);
-
-        log.info("Account with ID: {} updated successfully", targetAccountId);
-
-        return userMapper.userToClientDto(targetAccount);
-    }
-
-    public AccountDto getUserProfileById(UUID accountId) {
-
-        //feature add specific data for each role
-
-        var adminId = authenticationFacade.getAccountIdFromAuthentication();
-        log.info("Getting account profile for user with ID: {} by Admin with ID: {}", accountId, adminId);
-
-        var user = findAccountByAccountId(accountId);
-        log.info("Successfully retrieved user profile for user with ID: {}", accountId);
-        return userMapper.userToClientDto(user);
-    }
-
-    public Page<UserListViewDto> searchAccounts(UserSearchRequest request, int page, int size) {
-
-        log.debug("Searching through accounts with parameters");
-        Pageable pageable = PageRequest.of(page, size);
-
-        entityManager.unwrap(Session.class).disableFilter("Active");
-
-        Instant utcNow = Instant.now();
-
-        return accountRepository.searchUsers(
-            request.getSearchText(),
-            request.isAdmins(),
-            request.isClients(),
-            request.isMedics(),
-            request.isBlocked(),
-            request.isDeleted(),
-            utcNow,
-            pageable
-        );
-    }
-
     public void validateEmailNotRegistered(String email) {
         if (accountRepository.findByEmail(email).isPresent()) {
             log.error("Email: {} is already registered", email);
@@ -474,12 +316,12 @@ public class AccountService {
         }
     }
 
-    private Account findAccountByAccountId(UUID accountId) {
+    public Account findAccountByAccountId(UUID accountId) {
         return accountRepository
             .findByAccountId(accountId)
             .orElseThrow(
                 () -> {
-                    log.debug("Account with ID: {} not found", accountId);
+                    log.error("Account with ID: {} not found", accountId);
                     return new EntityNotFoundException(
                         String.format("Account with ID: %s not found", accountId));
                 });

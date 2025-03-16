@@ -19,6 +19,7 @@ import com.ifortex.internship.medstarter.exception.custom.EmailSendException;
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.medstarter.exception.custom.ForbiddenActionException;
 import com.ifortex.internship.medstarter.exception.custom.InvalidRequestException;
+import com.ifortex.internship.medstarter.model.constant.LinkConstants;
 import com.ifortex.internship.medstarter.security.dto.AdminDetailsDto;
 import com.ifortex.internship.medstarter.security.model.constant.UserRole;
 import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
@@ -69,8 +70,6 @@ public class AuthService {
     @Value("${app.otp.loginExpirationMinutes}") int loginOtpExpirationMinutes;
     @Value("${app.tempPassword.expirationHours}") int tempPasswordExpirationHours;
     @Value("${app.refreshTokenExpirationS}") Long refreshTokenExpirationS;
-    @Value("${app.link.resetPasswordEmail}") String resetLink;
-    @Value("${app.link.verifyOtpLogin}") String verifyOtpLink;
 
     public AuthResponse authenticateUser(LoginRequest loginRequest) {
         String accountEmail = loginRequest.getEmail();
@@ -216,7 +215,7 @@ public class AuthService {
         refreshTokenRepository.deleteRefreshTokenByAccountEmail(accountEmail);
         log.debug(LOG_REFRESH_TOKEN_DELETED, accountEmail);
 
-        String resetMessage = String.format(resetLink, account.getEmail());
+        String resetMessage = String.format(LinkConstants.RESET_PASSWORD_EMAIL, account.getEmail());
         try {
             userNotificationService.sendPasswordResetRequestEmail(accountEmail, PASSWORD_RESET, resetMessage);
         } catch (MessagingException e) {
@@ -253,7 +252,7 @@ public class AuthService {
                           + "to your email: %s. Please enter the code along with your email at the following link: ", accountEmail);
         return AuthResponse.builder()
             .message(message)
-            .link(verifyOtpLink)
+            .link(LinkConstants.VERIFY_OTP_LOGIN)
             .build();
     }
 

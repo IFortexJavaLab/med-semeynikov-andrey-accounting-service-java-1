@@ -1,16 +1,15 @@
-package com.ifortex.internship.authservice.dto.response;
+package com.ifortex.internship.authserviceapi.dto.response;
 
-import com.ifortex.internship.medstarter.security.model.constant.UserRole;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
-@FieldDefaults(level = AccessLevel.PRIVATE)
 @Getter
 @Setter
 @Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class AccountDto {
     String accountId;
     String email;
@@ -18,5 +17,5 @@ public class AccountDto {
     String firstName;
     String lastName;
     boolean isTwoFactorEnabled;
-    UserRole role;
+    String role;
 }

@@ -1,10 +1,9 @@
 package com.ifortex.internship.authservice.util;
 
 import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
-import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.model.Account;
 import com.ifortex.internship.authservice.model.Role;
-import com.ifortex.internship.medstarter.security.model.constant.UserRole;
+import com.ifortex.internship.authserviceapi.dto.response.AccountDto;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -24,7 +23,7 @@ public interface UserMapper {
     void updateAccountFromDto(UpdateAccountDto dto, @MappingTarget Account account);
 
     @Named("roleToUserRole")
-    static UserRole roleToUserRole(Role role) {
-        return role != null ? role.getName() : null;
+    static String roleToUserRole(Role role) {
+        return role != null ? role.getName().name() : null;
     }
 }

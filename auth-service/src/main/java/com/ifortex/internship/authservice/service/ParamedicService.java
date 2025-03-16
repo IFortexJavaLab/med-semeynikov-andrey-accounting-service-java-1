@@ -43,6 +43,13 @@ public class ParamedicService {
         return new CreateUserResponse(message, accountDto.getPassword(), accountDto.getTempPasswordExpirationHours());
     }
 
+    public void saveNewParamedic(Account account, UUID bonusPolicyId) {
+        Paramedic paramedic = new Paramedic()
+            .setAccount(account)
+            .setBonusPolicyId(bonusPolicyId);
+        paramedicRepository.save(paramedic);
+    }
+
     private CreatedAccountDto createAndRegisterParamedic(String email, UUID bonusPolicyId) {
 
         accountService.validateEmailNotRegistered(email);
@@ -56,17 +63,10 @@ public class ParamedicService {
 
         var accountDto = accountService.createAccount(email, null, role);
         var account = accountDto.getAccount();
-        save(account, bonusPolicyId);
+        saveNewParamedic(account, bonusPolicyId);
 
         log.info("Paramedic: {} registered successfully", account.getEmail());
         return accountDto;
-    }
-
-    private void save(Account account, UUID bonusPolicyId) {
-        Paramedic paramedic = new Paramedic()
-            .setAccount(account)
-            .setBonusPolicyId(bonusPolicyId);
-        paramedicRepository.save(paramedic);
     }
 
 }

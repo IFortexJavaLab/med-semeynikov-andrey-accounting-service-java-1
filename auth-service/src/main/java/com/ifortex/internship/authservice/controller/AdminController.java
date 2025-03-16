@@ -7,16 +7,16 @@ import com.ifortex.internship.authservice.dto.request.CreateParamedicRequest;
 import com.ifortex.internship.authservice.dto.request.UnblockUserRequest;
 import com.ifortex.internship.authservice.dto.request.UpdateAccountDto;
 import com.ifortex.internship.authservice.dto.request.UserSearchRequest;
-import com.ifortex.internship.authservice.dto.response.AccountDto;
 import com.ifortex.internship.authservice.dto.response.CreateUserResponse;
 import com.ifortex.internship.authservice.dto.response.SuccessResponse;
 import com.ifortex.internship.authservice.dto.response.TemporaryPasswordResponse;
 import com.ifortex.internship.authservice.dto.response.UserListViewDto;
-import com.ifortex.internship.authservice.service.AccountService;
+import com.ifortex.internship.authservice.service.AdminAccountManagementService;
 import com.ifortex.internship.authservice.service.AdminService;
 import com.ifortex.internship.authservice.service.AuthService;
 import com.ifortex.internship.authservice.service.ClientService;
 import com.ifortex.internship.authservice.service.ParamedicService;
+import com.ifortex.internship.authserviceapi.dto.response.AccountDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -56,8 +56,7 @@ import java.util.UUID;
 public class AdminController {
 
     AuthService authService;
-    AccountService userService;
-    AccountService accountService;
+    AdminAccountManagementService adminAccountManagement;
     ClientService clientService;
     AdminService adminService;
     ParamedicService paramedicService;
@@ -67,18 +66,16 @@ public class AdminController {
     public ResponseEntity<AccountDto> updateProfile(
         @PathVariable("accountId") UUID accountId,
         @RequestBody UpdateAccountDto updateAccountDto) {
-
         log.info("Attempt to update account with ID: {}", accountId);
-        AccountDto updatedUser = userService.updateAccountByAdmin(accountId, updateAccountDto);
+        AccountDto updatedUser = adminAccountManagement.updateAccountByAdmin(accountId, updateAccountDto);
         return ResponseEntity.ok(updatedUser);
     }
 
     @Operation(summary = "Get user's profile by ID")
     @GetMapping("/{accountId}")
     public ResponseEntity<AccountDto> getUserProfileById(@PathVariable UUID accountId) {
-
         log.info("Attempt to get account profile by ID: {}", accountId);
-        var fullUser = userService.getUserProfileById(accountId);
+        var fullUser = adminAccountManagement.getUserProfileById(accountId);
         return ResponseEntity.ok(fullUser);
     }
 
@@ -95,16 +92,14 @@ public class AdminController {
         @Max(value = 100, message = "Size of the page can't be more than 100")
         int size
     ) {
-
         log.info("Request to search with parameters through users");
-        Page<UserListViewDto> result = accountService.searchAccounts(request, page, size);
+        Page<UserListViewDto> result = adminAccountManagement.searchAccounts(request, page, size);
         return ResponseEntity.ok(result.getContent());
     }
 
     @Operation(summary = "Creates new admin")
     @PostMapping("/admin")
     public ResponseEntity<CreateUserResponse> createAdmin(@RequestBody @Valid CreateAdminRequest request) {
-
         log.info("Attempt to register Admin with email: {}", request.getEmail());
         CreateUserResponse response = adminService.createAdmin(request);
 
@@ -114,28 +109,22 @@ public class AdminController {
     @Operation(summary = "Creates new client")
     @PostMapping("/client")
     public ResponseEntity<CreateUserResponse> createClient(@RequestBody @Valid CreateClientRequest request) {
-
         CreateUserResponse response = clientService.createClient(request);
-
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Creates new paramedic")
     @PostMapping("/medic")
     public ResponseEntity<CreateUserResponse> createParamedic(@RequestBody @Valid CreateParamedicRequest request) {
-
         CreateUserResponse response = paramedicService.createParamedic(request);
-
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Reset user's password by generating temp password")
     @PostMapping("/users/{userId}/reset-password-temp")
     public ResponseEntity<TemporaryPasswordResponse> resetPasswordWithTemp(@PathVariable("userId") UUID accountId) {
-
         log.info("Attempt to reset password for account: {} by admin", accountId);
         TemporaryPasswordResponse response = authService.resetPasswordWithTemp(accountId);
-
         return ResponseEntity.ok(response);
     }
 
@@ -145,10 +134,8 @@ public class AdminController {
             "Reset user's password by deleting current password and sending email to user with request to reset password")
     @PostMapping("/users/{accountId}/reset-password-email")
     public ResponseEntity<SuccessResponse> resetPasswordWithEmail(@PathVariable("accountId") UUID accountId) {
-
         log.info("Attempt to reset password for account: {} by admin", accountId);
         SuccessResponse response = authService.resetPasswordWithEmail(accountId);
-
         return ResponseEntity.ok(response);
     }
 
@@ -158,9 +145,8 @@ public class AdminController {
             "Blocks a user until a specified date. Only ADMIN and SUPER_ADMIN can perform this action")
     @PatchMapping("/users/block")
     public ResponseEntity<Void> blockUser(@RequestBody @Valid BlockUserRequest request) {
-
         log.info("Attempt to block user with account: {}", request.getAccountId());
-        userService.blockAccount(request);
+        adminAccountManagement.blockAccount(request);
         return ResponseEntity.noContent().build();
     }
 
@@ -170,7 +156,7 @@ public class AdminController {
             "Unblocks a previously blocked user. Only ADMIN and SUPER_ADMIN can perform this action")
     @PatchMapping("/users/unblock")
     public ResponseEntity<Void> unblockUser(@RequestBody @Valid UnblockUserRequest request) {
-        userService.unblockAccount(request);
+        adminAccountManagement.unblockAccount(request);
         return ResponseEntity.noContent().build();
     }
 
@@ -180,9 +166,8 @@ public class AdminController {
             "Soft deletes a user by marking them as deleted without removing their data from the system")
     @DeleteMapping("/users/{accountId}")
     public ResponseEntity<Void> softDeleteUser(@PathVariable("accountId") UUID accountId) {
-
         log.info("Attempt to delete account: {} with soft delete", accountId);
-        userService.softDelete(accountId);
+        adminAccountManagement.softDelete(accountId);
         return ResponseEntity.noContent().build();
     }
 
@@ -190,10 +175,8 @@ public class AdminController {
     @DeleteMapping("/users/{accountId}/hard")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> hardDeleteUser(@PathVariable("accountId") UUID accountId) {
-
         log.info("Attempt to delete account: {} with hard delete", accountId);
-        userService.hardDelete(accountId);
+        adminAccountManagement.hardDelete(accountId);
         return ResponseEntity.noContent().build();
     }
-
 }

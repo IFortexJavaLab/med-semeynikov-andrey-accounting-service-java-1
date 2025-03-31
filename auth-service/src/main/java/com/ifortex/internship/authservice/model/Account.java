@@ -67,8 +67,14 @@ public class Account {
     private boolean isTwoFactorEnabled = true;
 
     private Instant blockedUntil;
+
+    @Column(length = 50)
     private String firstName;
+
+    @Column(length = 50)
     private String lastName;
+
+    @Column(length = 15)
     private String phoneNumber;
 
     @CreationTimestamp

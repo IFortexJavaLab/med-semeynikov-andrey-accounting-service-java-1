@@ -2,17 +2,17 @@ package com.ifortex.internship.authservice.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.experimental.FieldDefaults;
+import jakarta.validation.constraints.Size;
 
-@FieldDefaults(level = AccessLevel.PRIVATE)
-@Getter
-@Setter
-public class CreateClientRequest {
+public record CreateClientRequest(
+
+    @NotBlank(message = "First name is required")
+    @Size(max = 50, message = "First name must not exceed 50 characters")
+    String firstName,
 
     @Email(message = "Invalid email format")
     @NotBlank(message = "Email is required")
-    String email;
+    String email
+
+) {
 }

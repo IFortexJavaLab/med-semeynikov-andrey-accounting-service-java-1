@@ -36,9 +36,9 @@ public class ClientService {
 
     @Transactional
     public CreateUserResponse createClient(CreateClientRequest request) {
-        log.info("Creating client with email: {}", request.getEmail());
+        log.info("Creating client with email: {}", request.email());
 
-        CreatedAccountDto accountDto = createAndRegisterClient(request.getEmail(), null);
+        CreatedAccountDto accountDto = createAndRegisterClient(request.email(), null, request.firstName());
 
         String message = String.format(
             "Client with email: %s created successfully",
@@ -49,11 +49,11 @@ public class ClientService {
 
     @Transactional
     public void register(RegistrationRequest request) {
-        log.debug("Registering user with email: {}", request.getEmail());
-        createAndRegisterClient(request.getEmail(), request.getPassword());
+        log.debug("Registering user with email: {}", request.email());
+        createAndRegisterClient(request.email(), request.password(), request.firstName());
     }
 
-    private CreatedAccountDto createAndRegisterClient(String email, String password) {
+    private CreatedAccountDto createAndRegisterClient(String email, String password, String firstName) {
         accountService.validateEmailNotRegistered(email);
 
         Role role = roleRepository.findByName(UserRole.CLIENT).orElseThrow(
@@ -63,7 +63,7 @@ public class ClientService {
                     String.format("Role with name: %s not found", UserRole.CLIENT));
             });
 
-        CreatedAccountDto accountDto = accountService.createAccount(email, password, role);
+        CreatedAccountDto accountDto = accountService.createAccount(email, password, role, firstName);
 
         Account account = accountDto.getAccount();
         String customerStripeId = stripeService.registerCustomer(account);

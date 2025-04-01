@@ -55,7 +55,7 @@ public class AdminService {
                     String.format("Role with name: %s not found", UserRole.ADMIN));
             });
 
-        CreatedAccountDto accountDto = accountService.createAccount(email, null, role);
+        CreatedAccountDto accountDto = accountService.createAccount(email, null, role, null);
         Account account = accountDto.getAccount();
 
         Admin admin = new Admin().setSuperAdmin(isCreatedSuperAdmin).setAccount(account);

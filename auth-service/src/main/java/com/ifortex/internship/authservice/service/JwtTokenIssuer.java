@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.CLAIM_ACCOUNT_ID;
+import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.CLAIM_FIRST_NAME;
 import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.CLAIM_ROLE;
 import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.HAS_ACTIVE_SUBSCRIPTION_CLAIM;
 import static com.ifortex.internship.medstarter.security.model.constant.JwtConstants.IS_SUPER_ADMIN_CLAIM;
@@ -56,6 +57,7 @@ public class JwtTokenIssuer {
         var role = account.getRole().getName();
         UUID accountId = account.getAccountId();
 
+        claims.put(CLAIM_FIRST_NAME, account.getFirstName());
         claims.put(CLAIM_ROLE, role);
 
         switch (role) {

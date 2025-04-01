@@ -17,12 +17,13 @@ import com.ifortex.internship.authservice.util.PasswordGenerator;
 import com.ifortex.internship.authservice.util.UserMapper;
 import com.ifortex.internship.authserviceapi.dto.response.AccountDto;
 import com.ifortex.internship.medstarter.exception.custom.AuthorizationException;
-import com.ifortex.internship.medstarter.exception.custom.EmailAlreadyRegistered;
+import com.ifortex.internship.medstarter.exception.custom.DuplicateResourceException;
 import com.ifortex.internship.medstarter.exception.custom.EmailSendException;
 import com.ifortex.internship.medstarter.exception.custom.EntityNotFoundException;
 import com.ifortex.internship.medstarter.exception.custom.InvalidRequestException;
 import com.ifortex.internship.medstarter.model.constant.LinkConstants;
 import com.ifortex.internship.medstarter.security.service.AuthenticationFacade;
+import jakarta.annotation.Nullable;
 import jakarta.mail.MessagingException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +64,7 @@ public class AccountService {
     @Value("${app.tempPassword.expirationHours}") int tempPasswordExpirationHours;
 
     @Transactional
-    public CreatedAccountDto createAccount(String email, String password, Role role) {
+    public CreatedAccountDto createAccount(String email, String password, Role role, @Nullable String firstName) {
         log.debug("Creating account with email: {}", email);
 
         Account account =
@@ -71,6 +72,10 @@ public class AccountService {
                 .setAccountId(UUID.randomUUID())
                 .setEmail(email)
                 .setRole(role);
+
+        if (firstName != null) {
+            account.setFirstName(firstName);
+        }
 
         String hashedPassword;
         if (password == null) {
@@ -312,7 +317,7 @@ public class AccountService {
     public void validateEmailNotRegistered(String email) {
         if (accountRepository.findByEmail(email).isPresent()) {
             log.error("Email: {} is already registered", email);
-            throw new EmailAlreadyRegistered("Email: " + email + " is already registered.");
+            throw new DuplicateResourceException(String.format("Email: %s is already registered.", email));
         }
     }
 

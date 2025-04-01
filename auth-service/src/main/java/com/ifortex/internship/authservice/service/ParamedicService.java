@@ -61,7 +61,7 @@ public class ParamedicService {
                     String.format("Role with name: %s not found", UserRole.PARAMEDIC));
             });
 
-        var accountDto = accountService.createAccount(email, null, role);
+        var accountDto = accountService.createAccount(email, null, role, null);
         var account = accountDto.getAccount();
         saveNewParamedic(account, bonusPolicyId);
 

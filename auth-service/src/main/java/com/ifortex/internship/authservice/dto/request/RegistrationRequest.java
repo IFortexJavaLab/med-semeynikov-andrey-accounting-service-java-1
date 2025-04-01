@@ -13,17 +13,6 @@ public record RegistrationRequest(
     @Size(max = 50, message = "First name must not exceed 50 characters")
     String firstName,
 
-    @NotBlank(message = "Last name is required")
-    @Size(max = 50, message = "Last name must not exceed 50 characters")
-    String lastName,
-
-    @NotBlank(message = "Phone number is required")
-    @Pattern(
-        regexp = "^\\+?\\d{10,15}$",
-        message = "Phone number must be valid and contain 10 to 15 digits"
-    )
-    String phoneNumber,
-
     @Email(message = "Invalid email format")
     @NotBlank(message = "Email is required")
     String email,

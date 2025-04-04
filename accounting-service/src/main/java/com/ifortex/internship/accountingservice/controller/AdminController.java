@@ -173,7 +173,7 @@ public class AdminController {
 
     @Operation(summary = "Delete user entirely")
     @DeleteMapping("/users/{accountId}/hard")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@roleSecurity.isSuperAdmin(authentication)")
     public ResponseEntity<Void> hardDeleteUser(@PathVariable("accountId") UUID accountId) {
         log.info("Attempt to delete account: {} with hard delete", accountId);
         adminAccountManagement.hardDelete(accountId);

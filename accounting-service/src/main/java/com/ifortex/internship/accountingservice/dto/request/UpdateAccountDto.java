@@ -18,10 +18,10 @@ import lombok.experimental.FieldDefaults;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UpdateAccountDto {
 
-    @Size(max = 100, message = "First name cannot exceed 100 characters")
+    @Size(max = 50, message = "First name cannot exceed 50 characters")
     String firstName;
 
-    @Size(max = 100, message = "Last name cannot exceed 100 characters")
+    @Size(max = 50, message = "Last name cannot exceed 100 characters")
     String lastName;
 
     @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format")

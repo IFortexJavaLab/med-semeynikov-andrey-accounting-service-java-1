@@ -59,9 +59,11 @@ public class AuthController {
     @GetMapping("/login/google")
     public ResponseEntity<Void> loginWithGoogle() {
         log.info("Login attempt with google account");
+
+        URI redirectUri = URI.create("http://localhost:8081/oauth2/authorization/google");
         return ResponseEntity
             .status(HttpStatus.FOUND)
-            .location(URI.create("/oauth2/authorization/google"))
+            .location(redirectUri)
             .build();
     }
 

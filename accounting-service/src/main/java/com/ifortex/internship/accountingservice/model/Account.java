@@ -64,7 +64,7 @@ public class Account {
     private boolean isSoftDeleted = false;
 
     @Column(nullable = false)
-    private boolean isTwoFactorEnabled = false;
+    private boolean isTwoFactorEnabled = true;
 
     private Instant blockedUntil;
 

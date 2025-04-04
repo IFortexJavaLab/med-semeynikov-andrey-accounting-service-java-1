@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.UUID;
 
 @FeignClient(
-    name = "auth-service",
+    name = "accounting-service",
     path = "/api/v1/accounting",
     configuration = FeignClientConfiguration.class)
 public interface AccountingServiceApi {

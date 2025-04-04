@@ -51,6 +51,7 @@ public class AuthSecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/accounting/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/subscription/webhooks").permitAll()
+                        .requestMatchers("/api/v1/subscription/plans").hasAnyRole("CLIENT", "ADMIN")
                         .requestMatchers("/api/v1/subscription/**").hasRole("CLIENT")
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs*/**").permitAll()
                         .requestMatchers("/success.html", "/cancel.html").permitAll()
